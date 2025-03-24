@@ -22,24 +22,31 @@ if True:
                 setattr(setup,name,val)
             else:
                 low = data[name][0]
+                if low == '': low = '0.0'
+                low = float(low)
                 nom = data[name][1]
+                if nom == '': nom = '0.0'
+                nom = float(nom)
                 hig = data[name][2]
+                if hig == '': hig = '0.0'
+                hig = float(hig)
                 dis = data[name][3]
                 if dis == 'none':
-                    val = float(nom)
+                    val = nom
                 elif dis == 'uniform':
-                    val = np.random.uniform(float(low),float(hig))
+                    val = np.random.uniform()*(hig-low)+low
                 elif dis == 'normal':
-                    val = gt.norm_trunc(1,mu=0.5*(float(hig)+float(low)),
-                                        dev=0.25*(float(hig)-float(low)),
-                                        lo=float(low),hi=float(hig))[0]
+                    val = gt.norm_trunc(1,mu=0.5*(hig+low),
+                                        dev=0.25*(hig-low),
+                                        lo=low,hi=hig)[0]
                 elif dis == 'loguniform':
-                    val = 10.0**(np.random.uniform(np.log10(float(low)),np.log10(float(hig))))
+                    # val = 10.0**(np.random.uniform(np.log10(float(low)),np.log10(float(hig))))
+                    val = 10.0**(np.random.uniform()*(np.log10(hig)-np.log10(low))+np.log10(low))
             setattr(setup,name,val)
-            if name in ['Strategy_TargetDirectory_path']:
-                print('inital working directory %s' %(os.getcwd()))
-                os.chdir(data[name][1])
-                print('modified working directory %s' %(os.getcwd()))
+            # if name in ['Strategy_TargetDirectory_path']:
+            #     print('inital working directory %s' %(os.getcwd()))
+            #     os.chdir(data[name][1])
+            #     print('modified working directory %s' %(os.getcwd()))
     
     counter = 0
     iters = int(float(data['Strategy_Iterations_units'][1]))

@@ -2,6 +2,8 @@
 """
 A lookup table based solver for (Gringarten et al, 1975: Journal of Geophyscial Research)
 """
+print('gringarten_1975')
+
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -150,10 +152,10 @@ class gringarten:
     #                     wellspacing=400,welldiameter=10*0.0254,roughness=80.0,
     #                     depth=4000,gradient=62.5,homogeneity=1.0,numwells=3,
     #                     proppantconductivity=100*Darcy,backpressure=5*MPa):
-    def simple_EGS_demo(self,numfracs=50,fracspacing=50,fracaperture=0.001,
-                        wellspacing=110,welldiameter=8*0.0254,roughness=80.0,
-                        depth=2300,gradient=80.0,homogeneity=0.1,numwells=2,
-                        proppantconductivity=50*Darcy,backpressure=1*MPa):
+    def EGS_demo(self,numfracs=50,fracspacing=50,fracaperture=0.001,
+            wellspacing=110,welldiameter=8*0.0254,roughness=80.0,
+            depth=2300,gradient=80.0,homogeneity=0.1,numwells=2,
+            proppantconductivity=50*Darcy,backpressure=1*MPa):
         L = wellspacing
         W = wellspacing
         mu = 0.1*cP
@@ -239,8 +241,30 @@ class gringarten:
         ax3.set_ylim([0,10e3])
         ax3.legend(loc='upper right',ncol=2,fontsize=9)
         plt.tight_layout()
-        
-        
+        plt.show()
+    
+    #standard Gringarten solution without pressure or heterogeneity modeling
+    def basic(self,rocktemp=473.15,rockKt=2.306,rockSv=2133,
+              numwells=2,wellspacing=110,numfracs=50,fracspacing=50,
+              tinj=274.0,bulkflow=0.04,tortuosity=1.0,poreSv=3320.0,
+              timepassed=[0.0e0,1.6e7,3.2e7,4.7e7,6.3e7]):
+        #setup
+        L = wellspacing
+        W = wellspacing
+        #flow distribution from cubic law
+        heterogeneity = np.linspace(tortuosity,1,int(numfracs))
+        q_fracs = (bulkflow*heterogeneity**3.0)/np.sum(heterogeneity**3.0)
+        #solve heat transfer for each fracture
+        T_mixed = np.zeros(len(timepassed))
+        for f in range(0,len(q_fracs)):
+            self.Tvt(fracspacing=fracspacing,Qinj=q_fracs[f]/(numwells-1),
+                     Kt_r=rockKt,Sv_r=rockSv,Sv_f=poreSv,
+                     L=L,W=W,Tinj=tinj,Trock=rocktemp)
+            self.Tvts(timepassed)
+            T_mixed += self.temp*(q_fracs[f]/bulkflow)
+        self.Tout = T_mixed
+        # self.hout = self.hvT(T_mixed)
+        # self.Pout = self.Pvh(self.hout,bulkflow,P1)
 
 #testing
 if False:

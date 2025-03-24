@@ -21,8 +21,7 @@ root.geometry('250x50')
 filename = filedialog.askopenfilename(initialdir=os.getcwd())
 if filename == '':
     filename = sys.path[0]+'\\settings\\DEFAULT.gts'
-head, data = gt.load_csv(filename)
-gt.special_csv(head,data,sys.path[0],os.getcwd(),sys.path[0]+'\\plugins\\runme.gts',append=False)
+gt.copy_csv(filename,sys.path[0]+'\\plugins\\runme.gts',append=False)
 root.destroy()
 
 #execute GeoDT

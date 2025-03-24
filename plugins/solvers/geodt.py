@@ -194,7 +194,6 @@ def lognorm_trunc(nsam,logmu=0.0,logdev=1.0,
 
 def norm_trunc(nsam,mu=0.0,dev=1.0,
                   lo=-2.0,hi=2.0): # get random samples from a log normal distribution
-    # normal samples
     s0 = np.random.normal(0,1,nsam)*dev + mu
     iters = 0
     while 1:
@@ -206,6 +205,8 @@ def norm_trunc(nsam,mu=0.0,dev=1.0,
         else:
             break
         if iters > 100:
+            r_dr = np.random.uniform(0,1,nsam)*(hi-lo) + lo
+            s0 = s0*(1-r_pl) + r_dr*(r_pl)
             break
     return s0
 
@@ -255,8 +256,8 @@ def build_csv(header=[],data=[],filename='save.csv',append=True):
         out = []
         for j in range(0,len(header)):
             out += [[header[j],data[header[j]][i]]]
-            if j == 0:
-                print(data[header[j]][i])
+            # if j == 0:
+            #     print(data[header[j]][i])
         if i == 0:
             save_csv(out,filename,append)
         else:
@@ -304,10 +305,41 @@ def copy_csv(sourcefile='load.csv',targetfile='save.csv',append=True):
 def load_csv(filename='save.csv'):
     names = []
     data = []
-    if True:
+    if False: #TODO: replace recfromcsv with custom importer (genfromtxt fails to recognize text)
         data = np.recfromcsv(filename,delimiter=',',filling_values=np.nan,deletechars='()',
                               case_sensitive=True,names=True,encoding=None)
         names = data.dtype.names
+    elif True: #note that genfromtxt doesn't work for a variety of reasons, so a custom function is needed
+        #load data as list of rows
+        with open(filename,'r') as f:
+            file = f.readlines()
+            f.close()
+        #convert into arrays
+        names = file[0].split(',')
+        names[-1] = names[-1][:-1]
+        for i in range(1,len(file)):
+            data += [file[i][:-1].split(',')]
+        #convert into structured array
+        numbers = np.ones(len(names))
+        dtype = []
+        for j in range(0,len(names)):
+            try:
+                for i in range(0,len(data)):
+                    float(data[i][j])
+                if (data[i][j].find('.') > -1) or (data[i][j] == "inf"):
+                    numbers[j] = 2
+            except:
+                numbers[j] = 0
+            if numbers[j] == 2:
+                dtype += [tuple([names[j],'<f8'])]
+            elif numbers[j] == 1:
+                dtype += [tuple([names[j],'<i8'])]
+            else:
+                dtype += [tuple([names[j],'<U600'])]
+        for i in range(0,len(data)):
+            data[i] = tuple(data[i])
+        dtype = np.dtype(dtype)
+        data = np.array(data,dtype=dtype)
     else:
         print('%s not found in %s' %(filename, os.getcwd()))
     return names, data
@@ -995,11 +1027,11 @@ class surf:
         self.bh = -1.0
         
         #*** stochastic sampled parameters ***
-        self.u_gamma = lognorm_trunc(1,np.log10(rock.gamma[1]),0.45,np.log10(rock.gamma[0]),np.log10(rock.gamma[2]))[0]
-        self.u_a = norm_trunc(1,rock.a[1],0.150,rock.a[0],rock.a[2])[0]
+        self.u_gamma = lognorm_trunc(1,np.log10(rock.gamma[1]),np.log10(rock.gamma[1]),np.log10(rock.gamma[0]),np.log10(rock.gamma[2]))[0]
+        self.u_a = norm_trunc(1,rock.a[1],0.5*rock.a[1],rock.a[0],rock.a[2])[0]
         self.u_N = contact_trunc(1,0.15,rock.N[1],0.5*rock.N[1],0.5,0.5*rock.N[1]/np.pi,rock.N[0],rock.N[2])[0]
-        self.u_alpha = norm_trunc(1,rock.alpha[1],rock.alpha[1],rock.alpha[0],rock.alpha[2])[0]
-        self.bh = norm_trunc(1,rock.bh[1],rock.bh[1],rock.bh[0],rock.bh[2])[0] #!!! would be nice to replace this with a physics based estimate
+        self.u_alpha = norm_trunc(1,rock.alpha[1],0.5*rock.alpha[1],rock.alpha[0],rock.alpha[2])[0]
+        self.bh = norm_trunc(1,rock.bh[1],0.5*rock.bh[1],rock.bh[0],rock.bh[2])[0] #!!! would be nice to replace this with a physics based estimate
         if phi < 0:
             self.phi = np.random.uniform(rock.phi[0],rock.phi[2],(1))[0]
         else:
@@ -1472,7 +1504,10 @@ class core:
         self.payoff.Stimulation_WaterVolume_m3 = self.rock.Vstim
         self.payoff.Stimulation_PumpPressure_MPa = 0.0 #!!!
         self.payoff.Circulation_WorkingVolume_m3 = 0.0 #!!!
-        self.payoff.Circulation_Recovery_pct = 100*self.payoff.Production_Rate_kgps/self.payoff.Injection_Rate_kgps
+        if self.payoff.Injection_Rate_kgps != 0:
+            self.payoff.Circulation_Recovery_pct = 100*self.payoff.Production_Rate_kgps/self.payoff.Injection_Rate_kgps
+        else:
+            self.payoff.Circulation_Recovery_pct = 100.0
         self.payoff.Circulation_MakeupWater_m3 = ((self.payoff.Injection_Rate_kgps-self.payoff.Production_Rate_kgps)*
                                                   self.rock.LifeSpan)
         self.payoff.Circulation_PumpPressure_MPa = self.rock.p_whp/MPa
@@ -1496,7 +1531,7 @@ class core:
         self.payoff.Fractures_HydroStim_ea = num_t
         self.payoff.Fractures_Hydroprop_ea = num_h
     
-    def setup_payoff(self,fname='setup_payoff.csv',pin='',aux=[]):
+    def setup_payoff(self,fname='setup_payoff.csv',pin='',aux=[],append=True):
         self.pre_save()
         out = []
         out += [['pin',pin]]
@@ -1507,21 +1542,27 @@ class core:
         for var in vars(self.payoff):
             out += [[var,getattr(self.payoff,var)]]
         #timeseries
-        pkg_ts = '%.3e' %(self.ts[0])
-        try:
-            pkg_Ts = '%.3e' %(water.T_from_Ph(P=self.rock.p_whp,h=self.p_hm[0]))
-        except:
-            pkg_Ts = '0.000'
-        pkg_hs = '%.3e' %(self.p_hm[0])
-        pkg_Ps = '%.3e' %(self.Pout[0])
-        for i in range(1,self.rock.TimeSteps-1):
-            pkg_ts += ';%.3e' %(self.ts[i])
+        if len(self.ts)>0:
+            pkg_ts = '%.3e' %(self.ts[0])
             try:
-                pkg_Ts += ';%.3e' %(water.T_from_Ph(h=self.p_hm[i],P=self.rock.p_whp))
+                pkg_Ts = '%.3e' %(water.T_from_Ph(P=self.rock.p_whp,h=self.p_hm[0]))
             except:
-                pkg_Ts += ';0.000'
-            pkg_hs += ';%.3e' %(self.p_hm[i])
-            pkg_Ps += ';%.3e' %(self.Pout[i])
+                pkg_Ts = '0.000'
+            pkg_hs = '%.3e' %(self.p_hm[0])
+            pkg_Ps = '%.3e' %(self.Pout[0])
+            for i in range(1,self.rock.TimeSteps-1):
+                pkg_ts += ';%.3e' %(self.ts[i])
+                try:
+                    pkg_Ts += ';%.3e' %(water.T_from_Ph(h=self.p_hm[i],P=self.rock.p_whp))
+                except:
+                    pkg_Ts += ';0.000'
+                pkg_hs += ';%.3e' %(self.p_hm[i])
+                pkg_Ps += ';%.3e' %(self.Pout[i])
+        else:
+            pkg_ts = '0.000'
+            pkg_Ts = '0.000'
+            pkg_hs = '0.000'
+            pkg_Ps = '0.000'
         out += [['Series_Time_s',pkg_ts]]
         out += [['Series_Temperature_s',pkg_Ts]]
         out += [['Series_Enthalpy_s',pkg_hs]]
@@ -1530,7 +1571,7 @@ class core:
         if aux:
             out += aux
         #to file
-        save_csv(out=out,filename=fname)
+        save_csv(out=out,filename=fname,append=append)
     
 #     def save(self,fname='input_output.txt',pin='',aux=[],printwells=0,time=True):
 #         out = []
@@ -1946,7 +1987,7 @@ class core:
             q_obj = [] #fractures
             q_col = [] #fractures colors
             q_lab = [] #fractures color labels
-            q_lab = ['Face_Number','Node_Number','Type','Dilation_mm','Hydraulic_mm','Sn_MPa','Pcen_MPa','Pc_MPa','stim','Pmax_MPa','Tau_MPa','Mwmax','Propped_mm','Prop_m3']
+            q_lab = ['Face_Number','Node_Number','Type','Mechanical_mm','Dilation_mm','Hydraulic_mm','Sn_MPa','Pcen_MPa','Pc_MPa','stim','Pmax_MPa','Tau_MPa','Mwmax','Propped_mm','Prop_m3','Conductivity_mDft']
             q_0 = []
             q_1 = []
             q_2 = []
@@ -1961,6 +2002,8 @@ class core:
             q_11 = []
             q_12 = []
             q_13 = []
+            q_14 = []
+            q_15 = []
             #nodex = np.asarray(self.nodes)
             for i in range(6,len(self.faces)): #skip boundary node at np.inf
                 if self.faces[i].ci >= 0:
@@ -1969,23 +2012,25 @@ class core:
                     q_1 += [self.faces[i].ci]
                     q_2 += [self.faces[i].typ]
                     q_3 += [self.faces[i].bd*1000]
-                    q_4 += [self.faces[i].bh*1000]
-                    q_5 += [self.faces[i].sn/MPa]
-                    q_6 += [self.faces[i].Pcen]
-                    q_7 += [self.faces[i].Pc/MPa]
-                    q_8 += [self.faces[i].stim]
-                    q_9 += [self.faces[i].Pmax]
-                    q_10 += [self.faces[i].tau/MPa]
+                    q_4 += [self.faces[i].bd0*1000]
+                    q_5 += [self.faces[i].bh*1000]
+                    q_6 += [self.faces[i].sn/MPa]
+                    q_7 += [self.faces[i].Pcen]
+                    q_8 += [self.faces[i].Pc/MPa]
+                    q_9 += [self.faces[i].stim]
+                    q_10 += [self.faces[i].Pmax]
+                    q_11 += [self.faces[i].tau/MPa]
                     if len(self.faces[i].Mws) > 0:
-                        q_11 += [np.max(self.faces[i].Mws)]
+                        q_12 += [np.max(self.faces[i].Mws)]
                     else:
-                        q_11 += [-10.0]
-                    q_12 +=  [self.faces[i].bd0p*1000]
-                    q_13 +=  [self.faces[i].prop_load]
+                        q_12 += [-10.0]
+                    q_13 +=  [self.faces[i].bd0p*1000]
+                    q_14 +=  [self.faces[i].prop_load]
+                    q_15 +=  [3.28084*1.01324e15*(self.faces[i].bh**3.0)/12.0]
                     #add geometry
                     q_obj += [HF(r=0.5*self.faces[i].dia, x0=self.faces[i].c0, strikeRad=self.faces[i].str, dipRad=self.faces[i].dip, h=0.02*r)]
             #vtk file
-            q_col = [q_0,q_1,q_2,q_3,q_4,q_5,q_6,q_7,q_8,q_9,q_10,q_11,q_12,q_13]
+            q_col = [q_0,q_1,q_2,q_3,q_4,q_5,q_6,q_7,q_8,q_9,q_10,q_11,q_12,q_13,q_14,q_15]
             sg.writeVtk(q_obj, q_col, q_lab, vtkFile=(fname + '_fnets.vtk'))
         
         #******   paint nodes   ******
@@ -4036,7 +4081,7 @@ class core:
         
         #mixed produced enthalpy and mass flow rate
         p_mm = []
-        p_hm = np.ones(len(ts))*water.h_from_PT(P=self.rock.AmbPres,T=self.rock.AmbTempK)
+        p_hm = np.zeros(len(ts))
         p_mm = 0.0
         for i in iPro:
             i = int(i)
@@ -4045,7 +4090,10 @@ class core:
         if p_mm < 0: 
             p_hm = p_hm/p_mm
         else:
-            p_hm = np.ones(len(ts))*hr
+            p_hm = np.ones(len(ts))*h5
+        for i in p_hm:
+            if i <= 0.0:
+                i = water.h_from_PT(P=self.rock.AmbPres,T=self.rock.AmbTempK)
         self.p_mm = p_mm #mixed produced mass flow rate
         self.p_hm = p_hm #mixed produced enthalpy
                 
@@ -4640,6 +4688,13 @@ class core:
             source = self.wells[i_key[i]].c0
             ck, j = self.nodes.add(source)
             self.nodes.p[j] = Pis[2][i]
+        for w in range(0,len(self.wells)):
+            #coordinates
+            source = self.wells[w].c0
+            #find index of duplicate
+            ck, i = self.nodes.add(source)
+            #record pressure
+            self.p_p[w] = self.nodes.p[i]
             
         #remember sand
         self.rock.sand = remember_sand
@@ -4866,14 +4921,198 @@ class core:
 
         return NPV, P-G, C, Q
 
+    # ************************************************************************
+    # calculate flow rate as a function of pressure using GeoDT
+    # ************************************************************************
+    def rate_vs_pressure(self, tips=[], points=40, visuals=True):
+        #working variables
+        Pis = [] #Pa
+        Qis = [] #m3/s
+        
+        #disable sand
+        remember_sand = self.rock.sand
+        self.rock.sand = 0.0
+        
+        #get index of key wells (index will match p_q and i_q from flow solver outputs)
+        i_div = 0
+        i_key = [] #injectors
+        p_div = 0
+        p_key = [] #producers
+        s_div = 0
+        s_key = [] #perforated zones
+        for i in range(0,len(self.wells)):
+            if (int(self.wells[i].typ) in [typ('injector')]):
+                i_key += [int(i)]
+                i_div += 1
+            elif (int(self.wells[i].typ) in [typ('producer')]):
+                p_key += [int(i)]
+                p_div += 1
+            elif (int(self.wells[i].typ) in [typ('perfcluster')]):
+                s_key += [int(i)]
+                s_div += 1
+        i_key = np.asarray(i_key,dtype=int)
+        p_key = np.asarray(p_key,dtype=int)
+        s_key = np.asarray(s_key,dtype=int)
+        
+        #initalization
+        Qis = [] #array of flows
+        Pis = [] #array of pressures
+        Vis = [] #array of volumes
+        Pcl = [] #array of median perf cluster pressure
+        Pch = [] #array of median pressure after perf choke
+        Psc = [] #array of median screen pressure
+        Pba = [] #array pf backpressures
+        Ps3 = [] #array of min-stress
+        
+        #rate from pressure loop
+        if tips == []:
+            pmax = 70.0*MPa
+            pmin = pmax/100.0
+            tips = 10.0**np.linspace(np.log10(pmin),np.log10(pmax),points) + self.rock.BH_P + self.rock.p_whp
+            #TODO: add critical pressure point
+        for i in range(0,points):
+            # #critical pressure corner point
+            # if (tips[i] > (self.rock.s3 - self.rock.dPi)) and (not(corner)):
+            #     corner = True
+            #     #reset nodal pressures
+            #     self.nodes.p = self.rock.BH_P + 1.0*MPa*np.random.rand(self.nodes.num)
+            #     #calculate injection rate and pressures
+            #     tip = self.rock.s3*np.ones(i_div)
+            #     #1st solve - low flow
+            #     self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+            #                     stim=False,plim=False,tryflowbound=False,visuals=visuals)
+            #     #2nd solve - high flow
+            #     self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+            #                     stim=False,plim=False,tryflowbound=False,visuals=visuals)
+            #     #get intermediate pressure points
+            #     p_clusters = []
+            #     p_chokes = []
+            #     p_screens = []
+            #     for k in range(0,self.pipes.num):
+            #         if typ(self.pipes.typ[k]) == 'perfcluster':
+            #             p_clusters += [self.nodes.p[self.pipes.n1[k]]]
+            #         elif typ(self.pipes.typ[k]) == 'choke':
+            #             p_chokes += [self.nodes.p[self.pipes.n1[k]]]    
+            #         elif typ(self.pipes.typ[k]) == 'screen':
+            #             p_screens += [self.nodes.p[self.pipes.n1[k]]]
+            #     #store data
+            #     Pis += [self.Pi]
+            #     Qis += [self.Qi]
+            #     Vis += [self.Vi]
+            #     Pcl += [np.median(p_clusters)]
+            #     Pch += [np.median(p_chokes)]
+            #     Psc += [np.median(p_screens)]
+            #     Pba += [self.rock.p_whp]
+            #     Ps3 += [self.rock.s3]
+                
+            #nominal point
+            #reset nodal pressures
+            self.nodes.p = self.rock.BH_P + 1.0*MPa*np.random.rand(self.nodes.num)
+            #calculate injection rate and pressures
+            tip = tips[i]*np.ones(i_div)
+            #1st solve - low flow
+            self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+                            stim=False,plim=False,tryflowbound=False,visuals=visuals)
+            #2nd solve - high flow
+            self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+                            stim=False,plim=False,tryflowbound=False,visuals=visuals)
+            ####TODO
+            '''
+            #### pressure corrections
+            i_prop = np.zeros(i_div) #index map of wells that are upstream of hydroprop
+            for b in range(0,self.pipes.num):
+                #start search from fractures and end with wells
+                p = self.pipes.num - b
+                if typ(self.pipes.typ[p] in ['choke','perf','propped','fracture']):
+                    if self.faces[self.pipes.fID[p]].hydroprop:
+                        #identify minimum pressure
+                        #calculate offset to impose hydroprop
+                        #add critical pressure
+                elif i_prop[self.pipes.pID[p]] > 0: #check if parent well is upstream of hydroprop
+                    pass
+                
+            
+            for f in range(6,len(self.faces)):
+                if self.faces[f].hydroprop == True:
+                    f_prop[f] self.faces[f].hydroprop = True
+                    break
+            if hydroprop:
+                #identify parent well
+            '''
+                
+            
+            #get intermediate pressure points
+            p_clusters = []
+            p_chokes = []
+            p_screens = []
+            for k in range(0,self.pipes.num):
+                if typ(self.pipes.typ[k]) == 'perfcluster':
+                    p_clusters += [self.nodes.p[self.pipes.n1[k]]]
+                elif typ(self.pipes.typ[k]) == 'choke':
+                    p_chokes += [self.nodes.p[self.pipes.n1[k]]]    
+                elif typ(self.pipes.typ[k]) == 'screen':
+                    p_screens += [self.nodes.p[self.pipes.n1[k]]]
+            #store data
+            Pis += [self.Pi]
+            Qis += [self.Qi]
+            Vis += [self.Vi]
+            Pcl += [np.median(p_clusters)]
+            Pch += [np.median(p_chokes)]
+            Psc += [np.median(p_screens)]
+            Pba += [self.rock.p_whp]
+            Ps3 += [self.rock.s3]
+                
+        #convert to array
+        Pis = np.asarray(Pis)-self.rock.BH_P
+        Qis = np.asarray(Qis)
+        Vis = np.asarray(Vis)-Vis[0]
+        Pcl = np.asarray(Pcl)-self.rock.BH_P
+        Pch = np.asarray(Pch)-self.rock.BH_P
+        Psc = np.asarray(Psc)-self.rock.BH_P
+        Pba = np.asarray(Pba)
+        Ps3 = np.asarray(Ps3)-self.rock.BH_P
+        
+        # #***** [10] flow boundary if flow is excessive, but don't calculate changes in apertures this step
+        # #reset nodal pressures
+        # self.nodes.p = self.rock.BH_P + 1.0*MPa*np.random.rand(self.nodes.num)
+        # #solve for flow
+        # tip = Pis[2]
+        # #1st solve - low flow
+        # self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+        #                 stim=False,plim=True,tryflowbound=False,visuals=visuals)
+        # #2nd solve - high flow
+        # self.solve_hydromech(i_key,p_key,tip,reinit=False,fix=True,
+        #                 stim=False,plim=True,tryflowbound=True,visuals=visuals)
+        # #error checking
+        # print('-> flow solution completed')
+        # print('P\t\tQ')
+        # print('%.2e\t%.2e' %(self.Pi[0],self.Qi[0]))
+        # #override to compensate for hydropropped fracture instability
+        # for i in range(0,i_div):
+        #     source = self.wells[i_key[i]].c0
+        #     ck, j = self.nodes.add(source)
+        #     self.nodes.p[j] = Pis[2][i]
+            
+        #remember sand
+        self.rock.sand = remember_sand
+        
+        return Pis, Qis, Vis, Pcl, Pch, Psc, Pba, Ps3
+
 # Visualization tools
 class visualization_SP:
     def __init__(self,filename='setup_payoff.csv'):
         #import data and store unaltered copy
-        self.names, self.data = load_csv(filename)
-        if np.size(self.data) > 1:
-            self.orig = np.copy(self.data)
-            self.normalize()
+        try:
+            self.names, self.data = load_csv(filename)
+        except:
+            geom = core()
+            setu = setup()
+            geom.rock.fetch(setu)
+            geom.setup_payoff('setup_payoff_placeholder.csv',geom.pin,aux=[],append=False)
+            self.names, self.data = load_csv('setup_payoff_placeholder.csv')
+        # if np.size(self.data) > 1:
+        self.orig = np.copy(self.data)
+        self.normalize()
     def normalize(self):
         #normalize data
         self.data_n = np.copy(self.data)
@@ -4932,10 +5171,13 @@ class visualization_SP:
     #data filter
     def multifilter(self,target='pin',compare=None,vs=[0.0,1e12]):
         keep = np.ones(len(self.data),dtype=bool)
-        if compare:
-            keep = (self.data[target] < vs[1]*self.data[compare]) * (self.data[target] > vs[0]*self.data[compare])
-        else:
-            keep = (self.data[target] < vs[1]) * (self.data[target] > vs[0])
+        try:
+            if compare:
+                keep = (self.data[target] < vs[1]*self.data[compare]) * (self.data[target] > vs[0]*self.data[compare])
+            else:
+                keep = (self.data[target] < vs[1]) * (self.data[target] > vs[0])
+        except:
+            print('%s not in setup_payoff' %(target))
         self.data = self.data[keep]
         self.data_n = self.data_n[keep]
     #reset
@@ -4964,7 +5206,8 @@ class visualization_SP:
         pcts = [0,1,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,99,100]
         first = True
         for p in pcts:
-            out = []
+            out = [['Quantile','%i' %(p)]]
+            out += [['Percentile','%i' %(100-p)]]
             for n in self.names:
                 try:
                     pv = '%.3e' %(self.quantile(self.data[n],[p])[1][0])
@@ -4972,10 +5215,10 @@ class visualization_SP:
                     pv = ''
                 out += [[n, pv]]
             if first:
-                save_csv(out,filename+'.csv',False)
+                save_csv(out,filename,False)
                 first = False
             else:
-                save_csv(out,filename+'.csv',True)
+                save_csv(out,filename,True)
             
 def RUN(setup=setup()):
     geom = core() #create the model object
@@ -4990,7 +5233,10 @@ def RUN(setup=setup()):
     geom.get_heat(plot=False,detail=False,lapse=False)
     NPV, P, C, Q = geom.get_economics(detail=True) #calculate economics
     aux = []
-    filename = setup.Strategy_TargetDirectory_path + '\\setup_payoff.csv'
+    if setup.Strategy_TargetDirectory_path  != '':
+        filename = setup.Strategy_TargetDirectory_path + '\\setup_payoff.csv'
+    else:
+        filename = 'setup_payoff.csv'
     print('************* saving file *************')
     print(filename)
     geom.setup_payoff(filename,geom.pin,aux=aux)
