@@ -17,7 +17,7 @@ if True:
     def sample():
         for name in names:
             if name in ['Strategy_SourceDirectory_path','Strategy_TargetDirectory_path','Strategy_DiscreteFractures_path',
-                        'Strategy_Design_type','Strategy_Target_type','Strategy_Stim_type']:
+                        'Strategy_Solver_type','Strategy_Design_type','Strategy_Target_type','Strategy_Stim_type']:
                 val = data[name][1]
                 setattr(setup,name,val)
             else:
@@ -43,10 +43,10 @@ if True:
                     # val = 10.0**(np.random.uniform(np.log10(float(low)),np.log10(float(hig))))
                     val = 10.0**(np.random.uniform()*(np.log10(hig)-np.log10(low))+np.log10(low))
             setattr(setup,name,val)
-            # if name in ['Strategy_TargetDirectory_path']:
-            #     print('inital working directory %s' %(os.getcwd()))
-            #     os.chdir(data[name][1])
-            #     print('modified working directory %s' %(os.getcwd()))
+            if name in ['Strategy_TargetDirectory_path']:
+                print('inital working directory %s' %(os.getcwd()))
+                os.chdir(data[name][1])
+                print('modified working directory %s' %(os.getcwd()))
     
     counter = 0
     iters = int(float(data['Strategy_Iterations_units'][1]))

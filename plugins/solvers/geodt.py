@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-print('GeoDT_4.2.0')
+print('GeoDT_5.0.0')
 
 # ****************************************************************************
 # Calculate economic potential of EGS & optimize borehole layout with caging
@@ -13,15 +13,18 @@ print('GeoDT_4.2.0')
 # ****************************************************************************
 #### libraries
 # ****************************************************************************
-#internal
-# if __package__ is None or __package__ == '':
-#     from .libs.gt_linalg import solve
-#     from .libs import gt_vtk as sg
-#     from .libs import gt_properties
-#     water = gt_properties.water()
-from .libs.gt_linalg import solve
-from .libs import gt_vtk as sg
-from .libs import gt_properties as properties
+if __package__ is None or __package__ == '':
+    from libs.linalg import solve
+    from libs import io
+    from libs import vtk as sg
+    from libs import properties
+    from libs.units import *
+else:
+    from .libs.linalg import solve
+    from .libs import io
+    from .libs import vtk as sg
+    from .libs import properties
+    from .libs.units import *
 water = properties.water()
 
 #external
@@ -37,25 +40,24 @@ import os
 #### unit conversions
 # ****************************************************************************
 # Unit conversions for convenience
-lpm=(0.1*0.1*0.1)/(60.0)
-ft=12*25.4e-3#m
-m=(1.0/ft)#ft
-deg=1.0*math.pi/180.0
+lpm=lpm
+ft=ft
+m=m
+deg=deg
 #rad=1.0/deg
-gal=3.785*0.1*0.1*0.1#m^3=3.785 l
-gpm=gal/60.0
-liter=0.1*0.1*0.1
-lps=liter/1.0# = liters per second
-cP=10.0**-3#Pa-s
-g=9.81#m/s2
-MPa=10.0**6.0#Pa
-GPa=10.0**9.0#Pa
-darcy=9.869233*10**-13#m2
-mD=darcy*10.0**3.0#m2
-yr=365.2425*24.0*60.0*60.0#s
-mLmin = 1.66667e-8 #m3/s
-pi=math.pi
-
+gal=gal
+gpm=gpm
+liter=liter
+lps=lps
+cP=cP
+g=g
+MPa=MPa
+GPa=GPa
+darcy=darcy
+mD=mD
+yr=yr
+mLmin=mLmin
+pi=np.pi
 
 # ****************************************************************************
 #### classes, functions, and modules
@@ -109,11 +111,11 @@ def azn_dip(x0,x1):
     if dx == 0 and dy >= 0:
         azn = 0.0
     elif dx == 0:
-        azn = pi
+        azn = np.pi
     else:
-        azn = np.sign(dx)*np.arccos(dy/dr) + (1 - np.sign(dx))*pi
+        azn = np.sign(dx)*np.arccos(dy/dr) + (1 - np.sign(dx))*np.pi
     if dr == 0.0:
-        dip = -np.sign(dz)*pi/2.0
+        dip = -np.sign(dz)*np.pi/2.0
     else:
         dip = -np.arctan(dz/dr)
     return azn, dip, dis
@@ -612,119 +614,121 @@ class cauchy: #functions modified from JPM
             pylab.savefig('check.png', format='png',dpi=128)
             pylab.close()
         return str_dip
-        
-#model definition
-class setup:
-    def __init__(self):
-        self.Strategy_SourceDirectory_path = os.getcwd()
-        self.Strategy_TargetDirectory_path = os.getcwd()
-        self.Strategy_DiscreteFractures_path = os.getcwd()+'\\dfn.csv'
-        self.Strategy_Iterations_units = 10
-        self.Strategy_Design_type = 'ALL' #'EGS' 'AGS' 'CGS' 'ALL' 'O&G'
-        self.Strategy_Target_type = 'Deep' #'Temp'
-        self.Strategy_Stim_type = 'Volu' #'Radi'
-        self.Well_TargetTemp_K = 273.15+325 #K
-        self.Well_TargetDepth_m = 6000.0 #m
-        self.Well_ProducerCount_wells = 4 #wells
-        #self.Well_InjectionIntervals_intervals = 1 #breaks in well length
-        self.Well_Spacing_m = 400.0 #m
-        self.Well_DeviatedLength_m = 800.0 #m
-        self.Well_ProducerProportion_ratio = 0.6 #m/m
-        self.Well_Azimuth_rad = 90.0*deg #rad
-        self.Well_Dip_rad = 30.0*deg #rad
-        self.Well_RotationPhase_rad = 0.0*deg #rad
-        self.Well_RotationToe_rad = 0.0*deg #rad
-        self.Well_RotationSkew_rad = 0.0*deg #rad
-        self.Well_HydraulicRadius_m = 0.0254*5.0 #m
-        self.Well_CasingRadius_m = 0.0254*5.5 # m
-        self.Well_BoreRadius_m = 0.0254*6.5 # m
-        self.Well_Roughness_metric = 80.0
-        self.Circulation_InjectionRate_m3ps = 0.10 #m3/s
-        self.Stimulation_InjectionRate_m3ps = 0.4 #m3/s
-        self.Stimulation_TargetVolume_m3 = 50000.0 #m3
-        self.Stimulation_TargetRadius_m = 525.0 #m3
-        self.Domain_Size_m = 1000.0 #m
-        self.Rock_ThermalGradient_Kpm = 0.060 #K/m
-        self.Rock_Density_kgpm3 = 2700.0 # kg/m3
-        self.Rock_ThermalConductivity_WpmK = 2.5 # W/m-K
-        self.Rock_HeatCapacity_kJpm3K = 2063.0 # kJ/m3-K
-        self.Air_Temperature_K = 273.15 # K
-        self.Air_Pressure_Pa = 0.101*MPa #Pa
-        self.Rock_YoungsModulus_Pa = 50.0*GPa #Pa
-        self.Rock_PoissonRatio_ratio = 0.3 #
-        self.StressMin_Coefficient_ratio = 0.5 #Pa/Pa
-        self.StressMax_Coefficient_ratio = 0.75 #Pa/Pa
-        self.StressMin_Azimuth_rad = 90.0*deg #rad
-        self.StressMin_Dip_rad = 0.0*deg #rad
-        self.StressMin_Variance_rad = 0.5*deg #rad
-        self.Fracture_SlipLengthMin_ratio = 10.0**-3.0 #m/m
-        self.Fracture_SlipLengthNom_ratio = 10.0**-2.0 #m/m
-        self.Fracture_SlipLengthMax_ratio = 10.0**-1.2 #m/m
-        self.Fracture_DilationSlipMin_ratio = 0.000 #m/m
-        self.Fracture_DilationSlipNom_ratio = 0.200 #m/m
-        self.Fracture_DilationSlipMax_ratio = 0.800 #m/m
-        self.Fracture_HydraulicDilationMin_ratio = 0.0 #m/m
-        self.Fracture_HydraulicDilationNom_ratio = 0.6 #m/m
-        self.Fracture_HydraulicDilationMax_ratio = 2.0 #m/m
-        self.Fracture_CompressibilityMin_1pPa = 2.0e-9 #1/Pa
-        self.Fracture_CompressibilityNom_1pPa = 2.9e-8 #1/Pa
-        self.Fracture_CompressibilityMax_1pPa = 10.0e-8 #1/Pa
-        self.Proppant_CompressibilityMin_1pPa = 2.0e-9 #1/Pa
-        self.Proppant_CompressibilityNom_1pPa = 2.9e-8 #1/Pa
-        self.Proppant_CompressibilityMax_1pPa = 10.0e-8 #1/Pa
-        self.Fracture_InitialHydraulicApertureMin_m = 0.00005 #m
-        self.Fracture_InitialHydraulicApertureNom_m = 0.00010 #m 
-        self.Fracture_InitialHydraulicApertureMax_m = 0.00020 #m 
-        self.Domain_BoundaryAperture_m = 0.003 #m
-        self.Fracture_TortuosityMin_ratio = 0.80 #m/m
-        self.Fracture_TortuosityNom_ratio = 0.90 #m/m
-        self.Fracture_TortuosityMax_ratio = 1.00 #m/m
-        self.Cement_ThermalConductivity_WpmK = 2.0 # W/m-K
-        self.Cement_HeatCapacity_kJpm3K = 2000.0 # kJ/m3-K
-        self.Power_GeneralEfficiency_ratio = 0.85 # kWe/kWt
-        self.Power_LifeSpan_s = 20.5*yr #years
-        self.Domain_TimeSteps_steps = 41 #steps
-        self.Circulation_Backpressure_Pa = 1.0*MPa #Pa
-        self.Circulation_InjectionTemperature_K = 95.0+273.15 #K
-        self.Power_ConvectionCoefficient_kWpm2K = 3.0 #kW/m2-K
-        self.Fluid_NominalDensity_kgpm3 = 965.0 #kg/m3
-        self.Fluid_Viscosity_Pas = 0.2*cP #Pa-s
-        self.Rock_Permeability_m2 = 0.1*mD #m2
-        self.Proppant_InitialPermeabilityMin_m2 = 10.0*darcy #m2
-        self.Proppant_InitialPermeabilityNom_m2 = 100.0*darcy #m2
-        self.Proppant_InitialPermeabilityMax_m2 = 300.0*darcy #m2
-        self.JointSets_Set1_fractures = 16 #fractures
-        self.JointSets_Set2_fractures = 8 #fractures
-        self.JointSets_Set3_fractures = 4 #fractures
-        # self.JointSets_Set4_fractures = 0 #fractures
-        # self.JointSets_Set5_fractures = 0 #fractures
-        self.JointSets_Variance_rad = 7.0*deg #rad
-        self.JointSets_DiameterMin_m = 10.0 #m
-        self.JointSets_DiameterMax_m = 1000.0 #m
-        self.Stimulation_Clusters_clusters = 3 #clusters
-        self.Stimulation_PerfDiameter_m = 0.013 #m
-        self.Stimulation_PerfPerCluster_perfs = 6 #holes
-        self.Stimulation_ProppantConcentration_m3pm3 = 0.045 #m3/m3
-        self.Domain_PressureIncrement_Pa = 0.1*MPa #Pa
-        self.Domain_StimulationLimit_steps = 1
-        self.Circulation_AllowableOverpressure_Pa = 0.99 #pinj/s3 #Pa
-        self.Shear_FrictionAngleMin_rad = 20.0*deg #rad
-        self.Shear_FrictionAngleNom_rad = 35.0*deg #rad
-        self.Shear_FrictionAngleMax_rad = 45.0*deg #rad
-        self.Shear_CohesionMin_Pa = 1.0*MPa #Pa
-        self.Shear_CohesionNom_Pa = 7.0*MPa #Pa
-        self.Shear_CohesionMax_Pa = 15.0*MPa #Pa
-        self.Tension_Cohesion_Pa = 0.1*MPa #Pa
-        self.Tension_FrictionAngle_rad = 30.0*deg #rad
-        self.Tension_Toughness_Pasqrtm = 1.5*MPa #Pa-m**0.5
-        self.Economics_ElectricitySales_USDpkWh = 0.1372 #$/kWh - customer electricity retail price                  
-        self.Economics_DrillingCost_USDpm = 2763.06 #$/m - Lowry et al, 2017 large diameter well baseline
-        self.Economics_AccessCost_USD = 590e3 #$ Lowry et al, 2017 large diameter well baseline
-        self.Economics_EquipmentCost_USDpkW = 2025.65 #$/kWe simplified from GETEM model 
-        self.Economics_ExplorationCost_USDpm = 2683.41 #$/m simplified from GETEM model
-        self.Economics_Maintenance_USDpkWh = 0.03648 #$/kWh simplified from GETEM model
-        self.Economics_Seismic_USDpMw = 2e-4 #$/Mw for $300M Mw 5.5 quake Pohang (Westaway, 2021) & $17.2B Mw 6.3 quake Christchurch (Swiss Re)
-        self.Economics_Seismic_exp = 5.0 #$/Mw for $300M Mw 5.5 quake Pohang (Westaway, 2021) & $17.2B Mw 6.3 quake Christchurch (Swiss Re)
+
+setup = io.setup
+# #model definition
+# class setup:
+#     def __init__(self):
+#         self.Strategy_SourceDirectory_path = os.getcwd()
+#         self.Strategy_TargetDirectory_path = os.getcwd()
+#         self.Strategy_DiscreteFractures_path = os.getcwd()+'\\dfn.csv'
+#         self.Strategy_Solver_type = 'GeoDT' #'Gringarten'
+#         self.Strategy_Iterations_units = 10
+#         self.Strategy_Design_type = 'ALL' #'EGS' 'AGS' 'CGS' 'ALL' 'O&G'
+#         self.Strategy_Target_type = 'Deep' #'Temp'
+#         self.Strategy_Stim_type = 'Volu' #'Radi'
+#         self.Well_TargetTemp_K = 273.15+325 #K
+#         self.Well_TargetDepth_m = 6000.0 #m
+#         self.Well_ProducerCount_wells = 4 #wells
+#         #self.Well_InjectionIntervals_intervals = 1 #breaks in well length
+#         self.Well_Spacing_m = 400.0 #m
+#         self.Well_DeviatedLength_m = 800.0 #m
+#         self.Well_ProducerProportion_ratio = 0.6 #m/m
+#         self.Well_Azimuth_rad = 90.0*deg #rad
+#         self.Well_Dip_rad = 30.0*deg #rad
+#         self.Well_RotationPhase_rad = 0.0*deg #rad
+#         self.Well_RotationToe_rad = 0.0*deg #rad
+#         self.Well_RotationSkew_rad = 0.0*deg #rad
+#         self.Well_HydraulicRadius_m = 0.0254*5.0 #m
+#         self.Well_CasingRadius_m = 0.0254*5.5 # m
+#         self.Well_BoreRadius_m = 0.0254*6.5 # m
+#         self.Well_Roughness_metric = 80.0
+#         self.Circulation_InjectionRate_m3ps = 0.10 #m3/s
+#         self.Stimulation_InjectionRate_m3ps = 0.4 #m3/s
+#         self.Stimulation_TargetVolume_m3 = 50000.0 #m3
+#         self.Stimulation_TargetRadius_m = 525.0 #m3
+#         self.Domain_Size_m = 1000.0 #m
+#         self.Rock_ThermalGradient_Kpm = 0.060 #K/m
+#         self.Rock_Density_kgpm3 = 2700.0 # kg/m3
+#         self.Rock_ThermalConductivity_WpmK = 2.5 # W/m-K
+#         self.Rock_HeatCapacity_kJpm3K = 2063.0 # kJ/m3-K
+#         self.Air_Temperature_K = 273.15 # K
+#         self.Air_Pressure_Pa = 0.101*MPa #Pa
+#         self.Rock_YoungsModulus_Pa = 50.0*GPa #Pa
+#         self.Rock_PoissonRatio_ratio = 0.3 #
+#         self.StressMin_Coefficient_ratio = 0.5 #Pa/Pa
+#         self.StressMax_Coefficient_ratio = 0.75 #Pa/Pa
+#         self.StressMin_Azimuth_rad = 90.0*deg #rad
+#         self.StressMin_Dip_rad = 0.0*deg #rad
+#         self.StressMin_Variance_rad = 0.5*deg #rad
+#         self.Fracture_SlipLengthMin_ratio = 10.0**-3.0 #m/m
+#         self.Fracture_SlipLengthNom_ratio = 10.0**-2.0 #m/m
+#         self.Fracture_SlipLengthMax_ratio = 10.0**-1.2 #m/m
+#         self.Fracture_DilationSlipMin_ratio = 0.000 #m/m
+#         self.Fracture_DilationSlipNom_ratio = 0.200 #m/m
+#         self.Fracture_DilationSlipMax_ratio = 0.800 #m/m
+#         self.Fracture_HydraulicDilationMin_ratio = 0.0 #m/m
+#         self.Fracture_HydraulicDilationNom_ratio = 0.6 #m/m
+#         self.Fracture_HydraulicDilationMax_ratio = 2.0 #m/m
+#         self.Fracture_CompressibilityMin_1pPa = 2.0e-9 #1/Pa
+#         self.Fracture_CompressibilityNom_1pPa = 2.9e-8 #1/Pa
+#         self.Fracture_CompressibilityMax_1pPa = 10.0e-8 #1/Pa
+#         self.Proppant_CompressibilityMin_1pPa = 2.0e-9 #1/Pa
+#         self.Proppant_CompressibilityNom_1pPa = 2.9e-8 #1/Pa
+#         self.Proppant_CompressibilityMax_1pPa = 10.0e-8 #1/Pa
+#         self.Fracture_InitialHydraulicApertureMin_m = 0.00005 #m
+#         self.Fracture_InitialHydraulicApertureNom_m = 0.00010 #m 
+#         self.Fracture_InitialHydraulicApertureMax_m = 0.00020 #m 
+#         self.Domain_BoundaryAperture_m = 0.003 #m
+#         self.Fracture_TortuosityMin_ratio = 0.80 #m/m
+#         self.Fracture_TortuosityNom_ratio = 0.90 #m/m
+#         self.Fracture_TortuosityMax_ratio = 1.00 #m/m
+#         self.Cement_ThermalConductivity_WpmK = 2.0 # W/m-K
+#         self.Cement_HeatCapacity_kJpm3K = 2000.0 # kJ/m3-K
+#         self.Power_GeneralEfficiency_ratio = 0.85 # kWe/kWt
+#         self.Power_LifeSpan_s = 20.5*yr #years
+#         self.Domain_TimeSteps_steps = 41 #steps
+#         self.Circulation_Backpressure_Pa = 1.0*MPa #Pa
+#         self.Circulation_InjectionTemperature_K = 95.0+273.15 #K
+#         self.Power_ConvectionCoefficient_kWpm2K = 3.0 #kW/m2-K
+#         self.Fluid_NominalDensity_kgpm3 = 965.0 #kg/m3
+#         self.Fluid_Viscosity_Pas = 0.2*cP #Pa-s
+#         self.Rock_Permeability_m2 = 0.1*mD #m2
+#         self.Proppant_InitialPermeabilityMin_m2 = 10.0*darcy #m2
+#         self.Proppant_InitialPermeabilityNom_m2 = 100.0*darcy #m2
+#         self.Proppant_InitialPermeabilityMax_m2 = 300.0*darcy #m2
+#         self.JointSets_Set1_fractures = 16 #fractures
+#         self.JointSets_Set2_fractures = 8 #fractures
+#         self.JointSets_Set3_fractures = 4 #fractures
+#         # self.JointSets_Set4_fractures = 0 #fractures
+#         # self.JointSets_Set5_fractures = 0 #fractures
+#         self.JointSets_Variance_rad = 7.0*deg #rad
+#         self.JointSets_DiameterMin_m = 10.0 #m
+#         self.JointSets_DiameterMax_m = 1000.0 #m
+#         self.Stimulation_Clusters_clusters = 3 #clusters
+#         self.Stimulation_PerfDiameter_m = 0.013 #m
+#         self.Stimulation_PerfPerCluster_perfs = 6 #holes
+#         self.Stimulation_ProppantConcentration_m3pm3 = 0.045 #m3/m3
+#         self.Domain_PressureIncrement_Pa = 0.1*MPa #Pa
+#         self.Domain_StimulationLimit_steps = 1
+#         self.Circulation_AllowableOverpressure_Pa = 0.99 #pinj/s3 #Pa
+#         self.Shear_FrictionAngleMin_rad = 20.0*deg #rad
+#         self.Shear_FrictionAngleNom_rad = 35.0*deg #rad
+#         self.Shear_FrictionAngleMax_rad = 45.0*deg #rad
+#         self.Shear_CohesionMin_Pa = 1.0*MPa #Pa
+#         self.Shear_CohesionNom_Pa = 7.0*MPa #Pa
+#         self.Shear_CohesionMax_Pa = 15.0*MPa #Pa
+#         self.Tension_Cohesion_Pa = 0.1*MPa #Pa
+#         self.Tension_FrictionAngle_rad = 30.0*deg #rad
+#         self.Tension_Toughness_Pasqrtm = 1.5*MPa #Pa-m**0.5
+#         self.Economics_ElectricitySales_USDpkWh = 0.1372 #$/kWh - customer electricity retail price                  
+#         self.Economics_DrillingCost_USDpm = 2763.06 #$/m - Lowry et al, 2017 large diameter well baseline
+#         self.Economics_AccessCost_USD = 590e3 #$ Lowry et al, 2017 large diameter well baseline
+#         self.Economics_EquipmentCost_USDpkW = 2025.65 #$/kWe simplified from GETEM model 
+#         self.Economics_ExplorationCost_USDpm = 2683.41 #$/m simplified from GETEM model
+#         self.Economics_Maintenance_USDpkWh = 0.03648 #$/kWh simplified from GETEM model
+#         self.Economics_Seismic_USDpMw = 2e-4 #$/Mw for $300M Mw 5.5 quake Pohang (Westaway, 2021) & $17.2B Mw 6.3 quake Christchurch (Swiss Re)
+#         self.Economics_Seismic_exp = 5.0 #$/Mw for $300M Mw 5.5 quake Pohang (Westaway, 2021) & $17.2B Mw 6.3 quake Christchurch (Swiss Re)
 
 class payoff:
     def __init__(self):
@@ -867,6 +871,7 @@ class reservoir:
         self.setup = s
         self.strategy = s.Strategy_Design_type.upper()
         self.stimtype = s.Strategy_Stim_type.upper()
+        self.solver = s.Strategy_Solver_type.upper()
         self.size = s.Domain_Size_m
         self.ResGradient = s.Rock_ThermalGradient_Kpm
         self.ResRho = s.Rock_Density_kgpm3
@@ -1046,7 +1051,7 @@ class surf:
         self.bd = self.bh/self.u_N
         self.bd0 = self.bd
         self.bd0p = 0.0
-        self.vol = (4.0/3.0)*pi*0.25*self.dia**2.0*0.5*self.bd
+        self.vol = (4.0/3.0)*np.pi*0.25*self.dia**2.0*0.5*self.bd
         self.arup = 0.25*np.pi*self.dia**2.0
     #adjust fracture cohesion to prevent runaway stimulation at specified conditions
     def check_integrity(self,rock=reservoir(),pres=0.0):
@@ -2127,23 +2132,51 @@ class core:
                 f_col = [f_0,f_1,f_2,f_3,f_4,f_5]
                 sg.writeVtk(f_obj, f_col, f_lab, vtkFile=(fname + '_bounds.vtk'))
 
-    def build_pts(self,spacing=25.0,fname='test_gridx'):
+    def build_pts(self,spacing=25.0,fname='test_gridx',special=''):
         print( '*** constructing temperature grid ***')
         #structured grid of datapoints
         fname = fname + '_therm.vtk'
-        size = self.rock.size
+        size = self.rock.size #TODO modify to focus on area of interest
         num = int(2.0*size/spacing)+1
+        dep = int((size+self.rock.ResDepth)/spacing)+1
         label = 'temp_K'
         ns = [num,num,num]
         o0 = [-size,-size,-size]
         ss = [spacing,spacing,spacing]
+        if special == 'z': #horizontal slice only
+            ns = [num,num,3]
+            o0 = [-size,-size,-spacing]
+            ss = [spacing,spacing,spacing]
+        elif special == 'y': #back wall
+            ns = [num,3,dep]
+            o0 = [-size,size-2*spacing,-size]
+            ss = [spacing,spacing,spacing]
+        elif special == 'x': #side wall
+            ns = [3,num,dep]
+            o0 = [-size,-size,-size]
+            ss = [spacing,spacing,spacing]
+        elif special == 'b': #base
+            ns = [num,num,3]
+            o0 = [-size,-size,-size]
+            ss = [spacing,spacing,spacing]
+        elif special == 't': #toe
+            ns = [3,num,dep]
+            o0 = [size-2*spacing,-size,-size]
+            ss = [spacing,spacing,spacing]
+        elif special == 's': #surface
+            ns = [num,num,3]
+            o0 = [-size,-size,self.rock.ResDepth-2*spacing]
+            ss = [spacing,spacing,spacing]
+        
         
         #initialize data to initial rock temperature
         #data = np.ones((num,num,num),dtype=float)*self.rock.BH_T
-        data = np.ones((num,num,num),dtype=float)*self.rock.BH_T
+        # data = np.ones((ns[0],ns[1],ns[2]),dtype=float)*self.rock.BH_T
+        data = np.zeros((ns[0],ns[1],ns[2]),dtype=float)
         if self.rock.gradient:
-            for i in range(0,num):
-                data[:,:,i] = data[:,:,i] + (size - spacing*i) * self.rock.ResGradient
+            for i in range(0,ns[2]):
+                # data[:,:,i] = data[:,:,i] + (size - spacing*i) * self.rock.ResGradient
+                data[:,:,i] = (self.rock.ResDepth - (o0[2] + spacing*i)) * self.rock.ResGradient + self.rock.AmbTempK
         
         #seek temperature drawdown
         for i in range(0,self.pipes.num):
@@ -2159,6 +2192,14 @@ class core:
             R0 = self.pipes.R0[i]
             Tr0 = self.nodes.Tr[self.pipes.n0[i]]
             Tr1 = self.nodes.Tr[self.pipes.n1[i]]
+            #get points associated with this feature
+            try:
+                xR = [np.max([int((c0[0]-r0-o0[0])/spacing)-1,0]), np.min([int((c0[0]+r0-o0[0])/spacing)+1,ns[0]])]
+                yR = [np.max([int((c0[1]-r0-o0[1])/spacing)-1,0]), np.min([int((c0[1]+r0-o0[1])/spacing)+1,ns[1]])]
+                zR = [np.max([int((c0[2]-r0-o0[2])/spacing)-1,0]), np.min([int((c0[2]+r0-o0[2])/spacing)+1,ns[2]])]
+            except:
+                xR = [0,1]; yR = [0,1]; zR = [0,1]
+            print([xR,yR,zR])
             #pipes and wells
             if (int(self.pipes.typ[i]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('screen')]): #pipe, Hazen-Williams
                 #well info
@@ -2167,26 +2208,35 @@ class core:
                 vAxi = np.asarray([math.sin(azn)*math.cos(-dip),math.cos(azn)*math.cos(-dip),math.sin(-dip)]) #axial vector
                 rc = self.wells[self.pipes.fID[i]].rc #azimuth
                 #cycle thruogh all points
-                for x in range(0,len(data)):
-                    for y in range(0,len(data[0])):
-                        for z in range(0,len(data[0,0])):
+                # for x in range(0,len(data)):
+                #     for y in range(0,len(data[0])):
+                #         for z in range(0,len(data[0,0])):
+                #cycle only through local points
+                for x in range(xR[0],xR[1]):
+                    for y in range(yR[0],yR[1]):
+                        for z in range(zR[0],zR[1]):
                             #point coordinates
                             xPt = np.asarray([o0[0]+x*spacing, o0[1]+y*spacing, o0[2]+z*spacing])
                             #spherical radius vector
                             pi = xPt-c0
                             #lengthwise distance along well
                             li = np.linalg.norm(np.dot(pi,vAxi))
+                            #lengthwise distance from origin x0 as weighting factor
+                            lw = np.linalg.norm(np.dot((xPt-x0),vAxi))/(2.0*r0)
                             #radial distance from well
                             ri = ((np.linalg.norm(pi))**2.0 - li**2.0)**0.5
                             #if within length and thermal radius
                             if (li < r0) and (ri < R0) and (ri > rc):
                                 #subtract delta T at point based on distance of point versus thermal radius
-                                data[x,y,z] = data[x,y,z] + (0.5*(T1+T0-Tr1-Tr0))*(1.0-(np.log(rc/ri)/np.log(rc/R0)))
+                                # data[x,y,z] = data[x,y,z] + (0.5*(T1+T0-Tr1-Tr0))*(1.0-(np.log(rc/ri)/np.log(rc/R0)))
+                                data[x,y,z] = data[x,y,z] + ((1.0-lw)*(T0-Tr0)+(lw)*(T1-Tr1))*(1.0-(np.log(rc/ri)/np.log(rc/R0)))
+                            #if point is inside the well
                             elif (li < r0) and (ri <= rc):
-                                data[x,y,z] = data[x,y,z] + (0.5*(T1+T0-Tr1-Tr0))
+                                # data[x,y,z] = data[x,y,z] + (0.5*(T1+T0-Tr1-Tr0))
+                                data[x,y,z] = data[x,y,z] + ((1.0-lw)*(T0-Tr0)+(lw)*(T1-Tr1))
                 
             #fractures and planes
-            elif (int(self.pipes.typ[i]) in [typ('fracture'),typ('propped'),typ('choke')]): #(int())Y[i][2] == 1: #fracture, effective cubic law
+            elif (int(self.pipes.typ[i]) in [typ('fracture'),typ('propped')]): #,typ('choke')]): #(int())Y[i][2] == 1: #fracture, effective cubic law
                 #fracture info
                 dip = self.faces[self.pipes.fID[i]].dip
                 azn = self.faces[self.pipes.fID[i]].str
@@ -2194,9 +2244,13 @@ class core:
                 vLeg = (x1-c0)/np.linalg.norm(x1-c0)
                 vWid = np.cross(vNor,vLeg) 
                 #cycle thruogh all points
-                for x in range(0,len(data)):
-                    for y in range(0,len(data[0])):
-                        for z in range(0,len(data[0,0])):
+                # for x in range(0,len(data)):
+                #     for y in range(0,len(data[0])):
+                #         for z in range(0,len(data[0,0])):
+                #cycle only through local points
+                for x in range(xR[0],xR[1]):
+                    for y in range(yR[0],yR[1]):
+                        for z in range(zR[0],zR[1]):
                             #point coordinates
                             xPt = np.asarray([o0[0]+x*spacing, o0[1]+y*spacing, o0[2]+z*spacing])
                             #spherical radius vector
@@ -2205,12 +2259,17 @@ class core:
                             ni = np.linalg.norm(np.dot(pi,vNor))
                             #lengthwise distance from fracture
                             li = np.linalg.norm(np.dot(pi,vLeg))
+                            #lengthwise distance from origin x0 as weighting factor
+                            lw = np.linalg.norm(np.dot((xPt-x0),vLeg))/(2.0*r0)
                             #widthwise distance from fracture
                             wi = np.linalg.norm(np.dot(pi,vWid))
                             #if within length, width, normal
                             if (ni <= R0) and (li <= r0) and (wi <= (0.5*self.pipes.W[i])):
                                 #subtract delta T at point based on distance of point versus thermal radius
-                                data[x,y,z] = data[x,y,z] + (0.5*(T1+T0)-self.rock.BH_T)*(1.0-ni/R0)
+                                # data[x,y,z] = data[x,y,z] + (0.5*(T1+T0)-self.rock.BH_T)*(1.0-ni/R0)
+                                # data[x,y,z] = data[x,y,z] + ((1.0-lw)*(T0-Tr0)+(lw)*(T1-Tr1))*(1.0-ni/R0)
+                                Tri = self.rock.BH_T - xPt[2]*self.rock.ResGradient
+                                data[x,y,z] = data[x,y,z] + ((1.0-lw)*T0+(lw)*T1-Tri)*(1.0-ni/R0)
 
         head = '# vtk DataFile Version 2.0\n'
         head += 'pointcloud\n'
@@ -3471,7 +3530,7 @@ class core:
             # Bulk power
             effy = np.max([0.0, 0.078795*np.log(h2) - 0.45651]) #(Zarrouk and Moon, 2014: Geothermics) --- f(electricity out, thermal in)
             Bulk = effy*h2*mt
-            Pump = -1e-3*mi*v5*P5/self.rock.GenEfficiency #reinjection pumping only
+            Pump = -1e-3*mi*v5*(P5-self.rock.p_whp)/self.rock.GenEfficiency #reinjection pumping only #TODO verify that this is a good way to compute this
             # Net power
             Net = Bulk + Pump
             # Record results
@@ -5138,6 +5197,9 @@ class visualization_SP:
         else:
             ax1 = ax
         if vrange:
+            for d in range(0,len(c)):
+                if c[d] == np.inf:
+                    c[d] = vrange[1] 
             sc = ax1.scatter(x=x,y=y,c=c,s=8,vmin=vrange[0],vmax=vrange[1],cmap=plt.cm.get_cmap(cmap))
         else:
             sc = ax1.scatter(x=x,y=y,c=c,s=8,cmap=plt.cm.get_cmap(cmap))
@@ -5233,10 +5295,7 @@ def RUN(setup=setup()):
     geom.get_heat(plot=False,detail=False,lapse=False)
     NPV, P, C, Q = geom.get_economics(detail=True) #calculate economics
     aux = []
-    if setup.Strategy_TargetDirectory_path  != '':
-        filename = setup.Strategy_TargetDirectory_path + '\\setup_payoff.csv'
-    else:
-        filename = 'setup_payoff.csv'
+    filename = setup.Strategy_TargetDirectory_path + '\\setup_payoff.csv'
     print('************* saving file *************')
     print(filename)
     geom.setup_payoff(filename,geom.pin,aux=aux)

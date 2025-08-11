@@ -5,7 +5,7 @@ A lookup table based solver for (Gringarten et al, 1975: Journal of Geophyscial 
 print('gringarten_1975')
 
 import numpy as np
-import matplotlib
+import pylab
 import matplotlib.pyplot as plt
 
 yr=365.2425*24.0*60.0*60.0 #s
@@ -93,26 +93,39 @@ class gringarten:
         self.C2 = 1e3*Sv_f/Kt_r
         self.Xe = 0.5*fracspacing*self.C2*Qinj/(L*W)
         #interpolated scaled-time vs spacing
-        for t in range(0,len(self.Twd)):
-            if self.Xe > self.Xed[-1]:
-                self.td = self.tD[-1,:]
-            elif self.Xe < self.Xed[0]:
-                self.td = self.tD[0,:]
-            else:
-                j = np.where(self.Xe < self.Xed)[0][0]
-                i = j-1
-                self.td = ((self.Xe-self.Xed[j])*(self.tD[i,:]-self.tD[j,:])/
-                           (self.Xed[i]-self.Xed[j])+self.tD[j,:])
+        # for t in range(0,len(self.Twd)):
+        if self.Xe > self.Xed[-1]:
+            self.td = self.tD[-1,:]
+        elif self.Xe < self.Xed[0]:
+            self.td = self.tD[0,:]
+        else:
+            j = np.where(self.Xe < self.Xed)[0][0]
+            i = j-1
+            self.td = ((self.Xe-self.Xed[j])*(self.tD[i,:]-self.tD[j,:])/(self.Xed[i]-self.Xed[j])+self.tD[j,:])
         #real units
         self.ts = self.td/(self.C1*(Qinj/(L*W))**2)
         self.Ts = Trock-self.Twd*(Trock-Tinj)
+    def plotTd(self):
+        fig = plt.figure(figsize=(10.0,5.0),dpi=100)
+        ax1 = fig.add_subplot(111)
+        for i in range(0,len(self.Xed)):
+            ax1.plot(self.tD[i],self.Twd,label='Xe %.1f' %(self.Xed[i]))
+        ax1.plot(self.td,self.Twd,':')
+        ax1.set_xlabel('Dimensionless Time',fontsize=10)
+        ax1.set_xscale('log')
+        ax1.set_ylabel('Dimensionless Temp',fontsize=10)
+        ax1.set_ylim([1,0])
+        ax1.legend(loc='lower left',ncol=2,fontsize=9)
+        plt.tight_layout()
     def plotTs(self):
         fig = plt.figure(figsize=(10.0,5.0),dpi=100)
         ax1 = fig.add_subplot(111)
-        ax1.plot(self.ts/yr,self.Ts)
+        ax1.plot(self.ts/yr,self.Ts,label='pre-interpolation')
+        ax1.plot(self.time/yr,self.temp,label='post-interpolation')
         ax1.set_xlabel('Time (yr)',fontsize=10)
         ax1.set_xscale('log')
         ax1.set_ylabel('Temp (K)',fontsize=10)
+        ax1.legend(loc='lower left',ncol=2,fontsize=9)
         plt.tight_layout()
     def Tvts(self,time):
         #interpolated temperature vs passed in time
@@ -252,7 +265,7 @@ class gringarten:
         L = wellspacing
         W = wellspacing
         #flow distribution from cubic law
-        heterogeneity = np.linspace(tortuosity,1,int(numfracs))
+        heterogeneity = np.linspace(0,1,int(numfracs))**3*(1-tortuosity)+tortuosity
         q_fracs = (bulkflow*heterogeneity**3.0)/np.sum(heterogeneity**3.0)
         #solve heat transfer for each fracture
         T_mixed = np.zeros(len(timepassed))
@@ -265,8 +278,93 @@ class gringarten:
         self.Tout = T_mixed
         # self.hout = self.hvT(T_mixed)
         # self.Pout = self.Pvh(self.hout,bulkflow,P1)
+    
+    #gringarten solver validation test using Gringarten, 1975, Fig. 5's inputs
+    # - assumes uniform flow
+    # - includes effects of fracture spacing
+    # - no natural fractures
+    # - plot results
+    def verify(self,tortuosity=1.0,visuals=True):
+        #setup
+        fig = plt.figure(figsize=(10.0,5.0),dpi=100)
+        ax = fig.add_subplot(111)
+        ty = np.linspace(0,100,101)
+        tp = np.asarray(ty*365.25*24*60*60)
+        #10 fractures, 160 m spacing
+        fn = 10; fs = 160.0
+        self.basic(rocktemp=300.0,
+                   rockKt=2.594,
+                   rockSv=1.046*2650,
+                   numwells=2,
+                   wellspacing=1000.0,
+                   numfracs=fn,
+                   fracspacing=fs,
+                   tinj=65.0,
+                   bulkflow=0.145,
+                   tortuosity=tortuosity,
+                   poreSv=4.184*1000,
+                   timepassed=tp)
+        ax.plot(ty,self.Tout,label='%i fractures, %.0f m spacing, %0.2f Xe' %(fn,fs,self.Xe)) 
+        #10 fractures, 80 m spacing
+        fn = 10; fs = 80.0
+        self.basic(rocktemp=300.0,
+                    rockKt=2.594,
+                    rockSv=1.046*2650,
+                    numwells=2,
+                    wellspacing=1000.0,
+                    numfracs=fn,
+                    fracspacing=fs,
+                    tinj=65.0,
+                    bulkflow=0.145,
+                    tortuosity=tortuosity,
+                    poreSv=4.184*1000,
+                    timepassed=tp)
+        ax.plot(ty,self.Tout,label='%i fractures, %.0f m spacing, %0.2f Xe' %(fn,fs,self.Xe)) 
+        #10 fractures, 40 m spacing
+        fn = 10; fs = 40.0
+        self.basic(rocktemp=300.0,
+                   rockKt=2.594,
+                   rockSv=1.046*2650,
+                   numwells=2,
+                   wellspacing=1000.0,
+                   numfracs=fn,
+                   fracspacing=fs,
+                   tinj=65.0,
+                   bulkflow=0.145,
+                   tortuosity=tortuosity,
+                   poreSv=4.184*1000,
+                   timepassed=tp)
+        ax.plot(ty,self.Tout,label='%i fractures, %.0f m spacing, %0.2f Xe' %(fn,fs,self.Xe)) 
+        #1 fractures, 500 m spacing
+        fn = 1; fs = 500.0
+        self.basic(rocktemp=300.0,
+                   rockKt=2.594,
+                   rockSv=1.046*2650,
+                   numwells=2,
+                   wellspacing=1000.0,
+                   numfracs=fn,
+                   fracspacing=fs,
+                   tinj=65.0,
+                   bulkflow=0.145,
+                   tortuosity=tortuosity,
+                   poreSv=4.184*1000,
+                   timepassed=tp)
+        ax.plot(ty,self.Tout,label='%i fractures, %.0f m spacing, %0.2f Xe' %(fn,fs,self.Xe))
+        #labels
+        ax.set_xlabel('Time (yr)',fontsize=10)
+        ax.set_ylabel('Temp (K)',fontsize=10)
+        ax.set_title('%0.2e C1, %.02e C2' %(self.C1,self.C2))
+        ax.legend(loc='lower center',ncol=2,fontsize=10)
+        plt.tight_layout()
+        if visuals:
+            pylab.show()
+        
+#validation plots
+if False:
+    x = gringarten()
+    x.verify(tortuosity=1.0,visuals=True)
 
-#testing
+#EGS demo
 if False:
     x = gringarten()
     x.Tvt()
@@ -274,9 +372,6 @@ if False:
     times = 10**np.linspace(np.log10(0.1),np.log10(15),41)*yr
     x.Tvts(times)
     x.plottime()
-    
     x.simple_EGS_demo()
-    
     plt.show()
-
         
