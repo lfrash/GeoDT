@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """ 
 Classes for calculating cashflow for a geothermal development project:
     1. Debt, equity, fees, and taxes
@@ -26,19 +27,19 @@ water = properties.water()
 #units
 deg=deg
 g=g
+yr=yr
 
+#**********************************************************************************************************
 ### economics functions
+#**********************************************************************************************************
 class cashflow():
-    def __init__(self): #defaults to "Durham EGS 3P 3I lpf.xlsx - CF GBP"
+    def __init__(self): #defaults to "Durham EGS 3P 3I lpf v2.xlsx - CF GBP"
         #project parameters
-        self.Time_Planning_yr = 1 #yr, final investment decision
-        self.Time_Construction_yr = 2 #yr, construction time
-        self.Time_Lifespan_yr = 35 #yr, total project life
+        self.Cost_PlanningTime_yr = 0.99 #yr, final investment decision
+        self.Cost_Capital_yr = 2.99 #yr, construction time including planning
+        self.Cost_Lifespan_yr = 32 #yr, total project life
         self.Cost_Planning_USD = -3.5430875e6 #USD, survey & planning costs
-        self.Cost_Reservoir_USD = -129.0447423e6 #USD, drilling and stimulation costs
-        self.Cost_Gridconnect_USD = -3.846153846e6 #USD, grid connection costs
-        self.Cost_Facilities_USD = -92.1345644e6 #USD, power plant cost
-        self.Cost_Grants_USD = 0.0e6 #USD, government grants
+        self.Cost_Capital_USD = -225.025460e6 #USD, drilling, stimulation, grid, facilities, and grants
         self.Cost_Operations_ratio = 0.02 #ratio, opex vs capex
         #sales pricing
         self.Sales_ElectricWholesale_USDpkWh = 54.645e-3 #USD, market rate sales for electricity
@@ -78,6 +79,7 @@ class cashflow():
                                   100578.8571,100578.8571,100578.8571,100578.8571])*1e3
         self.Power_Pumping_kWh = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,
                                           0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0])*1e3
+        self.Power_Heat_kWh = self.Power_Gross_kWh/0.15 + self.Power_Thermal_kWh
         #CO2 offset, https://www.gov.uk/government/publications/greenhouse-gas-reporting-conversion-factors-2024
         self.CO2_Electric_kgpkWh = 0.22499 #kgCO2/kWhe, CO2 emitted from 'grid' power
         self.CO2_Heat_kgpkWh = 0.18293 #kgCO2/kWht, CO2 emitted from natural gas for heat 
@@ -88,7 +90,7 @@ class cashflow():
         self.re_init()
     def re_init(self):
         #refernce tables
-        span = int(self.Time_Lifespan_yr)
+        span = int(self.Cost_Lifespan_yr+1+int(self.Cost_Capital_yr))
         self.Equity_WACC_ratio = self.Equity_Contribution_ratio*self.Equity_CostOfCapital_ratio+(
             (1.0-self.Equity_Contribution_ratio)*self.Debt_InterestRate_ratio*(1.0-self.Tax_Corporate_ratio))
         self.Inflation_Table_series = (1.0+self.Tax_Inflation_ratio)**np.linspace(0,span-1,span)
@@ -96,10 +98,9 @@ class cashflow():
         #series
         self.Cost_Capex_USD = np.zeros(span)
         self.Cost_Opex_USD = np.zeros(span)
-        a = int(self.Time_Planning_yr)
-        b = a + int(self.Time_Construction_yr)
-        self.Cost_Capex_USD[a:b] += ((self.Cost_Reservoir_USD+self.Cost_Gridconnect_USD+
-                             self.Cost_Facilities_USD+self.Cost_Grants_USD)/(b-a))*np.ones(b-a)
+        a = 1+int(self.Cost_PlanningTime_yr-0.001)
+        b = 1+int(self.Cost_Capital_yr-0.001)
+        self.Cost_Capex_USD[a:b] += ((self.Cost_Capital_USD)/(b-a))*np.ones(b-a)
         for i in range(b,span):
             self.Cost_Opex_USD[i] = np.sum(self.Cost_Capex_USD[:i])*self.Cost_Operations_ratio
         self.Cost_Capex_USD[0:a] += (self.Cost_Planning_USD/a)*np.asarray(a)
@@ -114,7 +115,7 @@ class cashflow():
             j = np.min([i+Depreciation_StraightLine_yr,span])
             self.Tax_Depreciation_USD[i:j] += capital[:j-i]
         #revenue from heat and electricity sales
-        j = np.min([span,b+self.Sales_ContractTime_yr])
+        j = np.min([span,b+int(self.Sales_ContractTime_yr)])
         self.Sales_Electric_USDpkWh = self.Sales_ElectricWholesale_USDpkWh*self.Inflation_Table_series
         self.Sales_Electric_USDpkWh[:j] = self.Sales_ElectricContract_USDpkWh*self.Inflation_Table_series[:j]
         self.Sales_Heat_USDpkWh = self.Sales_HeatWholesale_USDpkWh*self.Inflation_Table_series
@@ -252,6 +253,8 @@ class cashflow():
         self.Sales_Heat_USD = np.sum(self.Power_Thermal_kWh*self.Sales_Heat_USDpkWh*keep)
         self.Sales_Electric_USD = np.sum(self.Power_Gross_kWh*self.Sales_Electric_USDpkWh*keep)
         self.Cost_Pumping_USD = np.sum(self.Cost_Energy_USD*keep)
+        self.Cost_Operations_USD = np.sum(self.Cost_Opex_USD*keep)
+        self.Cost_Credits_USD = np.sum(self.Tax_CumulativeCredit_USD*keep)
         self.Power_ProductiveLife_yr = np.sum(keep)
         self.Power_RunningGross_kW = np.sum(self.Power_Gross_kWh*keep/(365.25*24))/np.sum(keep)
         self.Power_RunningThermal_kW = np.sum(self.Power_Thermal_kWh*keep/(365.25*24))/np.sum(keep)
@@ -269,7 +272,7 @@ class cashflow():
         self.Profit_LCOE_USDpMWh = -1e3*(np.sum((self.Cost_Capex_USD+self.Cost_Opex_USD)*self.Discount_Table_series*keep)
                                          /np.max([1,np.sum((self.Power_Gross_kWh+self.Power_Pumping_kWh)*self.Discount_Table_series*keep)]))
         self.Profit_LCOH_USDpMWh = -1e3*(np.sum((self.Cost_Capex_USD+self.Cost_Opex_USD)*self.Discount_Table_series*keep)
-                                        /np.max([1,np.sum(self.Power_Thermal_kWh*self.Discount_Table_series*keep)]))
+                                        /np.max([1,np.sum(self.Power_Heat_kWh*self.Discount_Table_series*keep)]))
         
         #Emissions offsetting
         self.CO2_Offset_MtCO2eq = 1e-9*np.sum(self.Power_Thermal_kWh*(self.CO2_Heat_kgpkWh-self.CO2_Geothermal_kgpkWh)*keep 
@@ -281,8 +284,14 @@ class cashflow():
         hi = 100.0
         for i in range(0,25):
             npv = (1 + rate)**np.linspace(0,len(cashflows)-1,len(cashflows))
-            npv = np.sum(cashflows/npv)
-            if npv > 0:
+            npv[npv==0] = 0.1
+            try:
+                npv = np.sum(cashflows/npv)
+            except:
+                print('error in irr calculation')
+                print(npv)
+                npv = 0.0
+            if npv > 0.1:
                 lo = rate
             else:
                 hi = rate
@@ -293,7 +302,8 @@ class cashflow():
 #**********************************************************************************************************
 ### calcuate drilling costs
 #**********************************************************************************************************
-def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
+# def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
+def drilling(s=[],w=[],visuals=False):
     #well information extractor
     count = 0
     for i in range(0,len(w)):
@@ -302,7 +312,6 @@ def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
         
     #learning table
     learning = (wids+1)**(np.log(1.0-s.Drilling_Learning_ratio)/np.log(2.0))
-    print(learning)
     
     #running totals
     Drilling_Time_h = s.Drilling_TimeMobilize_h
@@ -318,11 +327,13 @@ def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
         cutvolume = w[i].leg*np.pi*w[i].rc**2 #m3
         
         #drilling time-cost
-        time_cut = ((s.Drilling_TimeCut_hpm4*middepth**3.0 + s.Drilling_TimeCut_hpm3) * cutvolume) * learning[w[i].pID]
+        # time_cut = ((s.Drilling_TimeCut_hpm4*middepth**3.0 + s.Drilling_TimeCut_hpm3) * cutvolume) * learning[w[i].pID]
+        time_cut = ((s.Drilling_TimeCut_hpm2*middepth**2.0 + s.Drilling_TimeCut_hpm) * w[i].leg) * learning[w[i].pID]
         cost_cut = time_cut*s.Drilling_CostCut_USDph
         
-        #drillng cut-cost
-        cost_cut += (s.Drilling_CostCut_USDpm4*middepth**2.0 + s.Drilling_CostCut_USDpm3) * cutvolume
+        #drilling cut-cost
+        # cost_cut += (s.Drilling_CostCut_USDpm4*middepth**2.0 + s.Drilling_CostCut_USDpm3) * cutvolume
+        cost_cut += (s.Drilling_CostCut_USDpm4*middepth**1.0 + s.Drilling_CostCut_USDpm3) * cutvolume
         
         #total time
         Drilling_Time_h += time_cut
@@ -335,16 +346,13 @@ def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
         time_case = 0.0
         cost_case = 0.0
         if not(w[i].type in ['screen']):
-            print('%i: %s is cased' %(i,w[i].type))
-            
             #casing time
-            time_case = ((s.Drilling_TimeCasing_hpm4*middepth**3.0 + s.Drilling_TimeCasing_hpm3) * cutvolume) * learning[w[i].pID]
+            # time_case = ((s.Drilling_TimeCasing_hpm4*middepth**3.0 + s.Drilling_TimeCasing_hpm3) * cutvolume) * learning[w[i].pID]
+            time_case = s.Drilling_TimeCasing_hpm * w[i].leg * learning[w[i].pID]
             cost_case = time_cut*s.Drilling_CostCasing_USDph
             
             #casing cost
             cost_case += ((s.Drilling_CostCasing_USDpm4*middepth**1.0 + s.Drilling_CostCasing_USDpm3) * cutvolume)
-        else:
-            print('%i: %s is NOT cased' %(i,w[i].type))
             
         #total time
         Drilling_Time_h += time_case
@@ -368,150 +376,410 @@ def drilling(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
         ax.set_xlabel('Drilling Time (d)',fontsize=10)
     
     #result
-    return Drilling_Time_h, Drilling_Cost_USD
+    s.Cost_Drilling_h = Drilling_Time_h
+    s.Cost_Drilling_USD = -Drilling_Cost_USD
+    return Drilling_Time_h, -Drilling_Cost_USD
 
 #**********************************************************************************************************
 ### calcuate stimulation costs
 #**********************************************************************************************************
-def fracking(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),visuals=False):
+def fracking(s=[],w=[],visuals=False):
+    #no injector
+    if (s.Well_InjectorCount_wells == 0) or (s.Well_Clusters_count == 0):
+        Stimulation_Time_h = 0.0
+        Stimulation_Cost_USD = 0.0
+    else:
+        #common information
+        Pstim = s.Stimulation_Pressure_Pa
+        Qstim = s.Stimulation_InjectionRate_m3ps
+        c_v = 0.0
+        for i in range(0,len(w)):
+            if w[i].type in ['perfcluster','procluster']:
+                c_v += s.Well_Clusters_count * s.Stimulation_Volume_m3pfrac #slurry volume with leakoff
+        c_m = c_v * s.Stimulation_ProppantConcentration_m3pm3 * s.Stimulation_ProppantDensity_kgpm3 #total proppant mass
+        
+        #fixed costs (mobilization, pad, parts)
+        Stimulation_Cost_USD = s.Fracking_Fixed_USD
+        
+        #depth related fees
+        Stimulation_Cost_USD += s.Fracking_Depth_USD*s.Well_DrilledLength_m 
+        
+        #volume costs
+        Stimulation_Cost_USD += s.Fracking_Water_USDpm3*c_v
+        Stimulation_Cost_USD += s.Fracking_Sand_USDpkg*c_m
+        
+        #time costs
+        Stimulation_Time_h = s.Fracking_TimeFactor_hph*c_v/(Qstim*60*60)
+        Stimulation_Cost_USD += s.Fracking_Fuel_USDpkWh*Stimulation_Time_h*Pstim*Qstim*1e-3
+        Stimulation_Cost_USD += Stimulation_Time_h*s.Fracking_Hourly_USDph
+        
+        #pressure-volume costs 
+        Stimulation_Cost_USD += s.Fracking_EquipmentWear_USDpm3*c_v*(s.Fracking_PressureFactor_ratio+(s.Fracking_PressureFactor_scale*Pstim)**3.0)
+    
+    #result
+    s.Cost_Stimulation_h = Stimulation_Time_h
+    s.Cost_Stimulation_USD = -Stimulation_Cost_USD
+    return Stimulation_Time_h, -Stimulation_Cost_USD
 
-    #Stimulation Cost Model #TODO: delete this
-    s.Fracking_Fixed_USD = 1233149.0 #$
-    s.Fracking_Depth_USD = 638.0 #$/m
-    s.Fracking_Hourly_USDph = 5973.3 #$/hr
+#**********************************************************************************************************
+### calcuate facilities costs
+#**********************************************************************************************************
+def facilities(s=[],b=[],visuals=False):
+    #simultaneous surface facilities with sequential drilling and stimulation
+    Construction_Time_yr = s.Cost_ConstructionTime_yr
+    
+    #use maximum power model (compare to running power model)
+    if np.max(b) > 0:
+        Construction_Cost_USD = np.max(b)*s.Cost_EquipmentCost_USDpkW*(0.6+3.0*(np.max(b)*1e-3)**(-0.5))
+    else:
+        Construction_Cost_USD = 0.0
+    
+    #result
+    s.Cost_Facilities_yr = Construction_Time_yr
+    s.Cost_Facilities_USD = -Construction_Cost_USD
+    return Construction_Time_yr, -Construction_Cost_USD
+
+#**********************************************************************************************************
+### total seismic costs (hydrofracs)
+#**********************************************************************************************************
+def seismic(s=[],visuals=False):
+    Mwmax = s.Seismicity_MaxQuake_Mw
+    s.Cost_Seismic_USD = s.Cost_Seismic_USDpMw*np.exp(Mwmax*s.Cost_Seismic_exp)
+    return s.Cost_Seismic_USD
+
+#**********************************************************************************************************
+### total capital costs (excludes planning)
+#**********************************************************************************************************
+def capital(s=[],visuals=False):
+    #simultaneous surface facilities with sequential drilling and stimulation
+    Capital_Time_yr = s.Cost_PlanningTime_yr + np.max([s.Cost_Facilities_yr,(s.Cost_Drilling_h+s.Cost_Stimulation_h)/(364.75*24)])
+    
+    #grants, drilling, stimulation, facilities, and grid connection
+    Capital_Cost_USD = s.Cost_Grants_USD
+    Capital_Cost_USD += s.Cost_Drilling_USD
+    Capital_Cost_USD += s.Cost_Stimulation_USD
+    Capital_Cost_USD += s.Cost_Facilities_USD
+    Capital_Cost_USD += s.Cost_Gridconnect_USD
+    Capital_Cost_USD += s.Cost_Seismic_USD
+    
+    #result
+    s.Cost_Capital_yr = Capital_Time_yr
+    s.Cost_Capital_USD = Capital_Cost_USD
+    return Capital_Time_yr, Capital_Cost_USD    
+
+#**********************************************************************************************************
+### calculate cashflow from timeseries information
+#**********************************************************************************************************
+# def evaluate(s=iogt.setup(),w=wells.gen_wells(iogt.setup()),b=[1000.0],visuals=False):
+def evaluate(s,w,ts,ther,bulk,pump,heat,visuals=False):
+    #capital costs
+    time, cost = drilling(s,w,visuals)
+    time, cost = fracking(s,w,visuals)
+    time, cost = facilities(s,bulk,visuals)
+    cost = seismic(s)
+    time, cost = capital(s)
+    
+    #match fields from setup to cashflow
+    econ = cashflow()
+    for item in vars(econ):
+        if item in vars(s):
+            setattr(econ,item,getattr(s,item))
+    
+    #power with matched timelines
+    gap = int(1.0+s.Cost_Capital_yr)
+    projectlife = gap + int(s.Cost_Lifespan_yr)
+    econ.Power_Gross_kWh = np.zeros(projectlife)
+    econ.Power_Thermal_kWh = np.zeros(projectlife)
+    econ.Power_Pumping_kWh = np.zeros(projectlife)
+    econ.Power_Heat_kWh = np.zeros(projectlife)
+    y = 0
+    i0 = 0
+    for i in range(0,len(ts)):
+        #check if year has advanced (relevant when timesteping is fine)
+        if int((ts[i]+1.0)/yr) > y:
+            dt = (ts[i]-ts[i0])/(60*60)
+            econ.Power_Heat_kWh[gap+y] = 0.5*(ther[i]+ther[i0])*dt
+            econ.Power_Gross_kWh[gap+y] = 0.5*(bulk[i]+bulk[i0])*dt
+            econ.Power_Pumping_kWh[gap+y] = 0.5*(pump[i]+pump[i0])*dt
+            econ.Power_Thermal_kWh[gap+y] = 0.5*(heat[i]+heat[i0])*dt
+            y += 1
+            i0 = i
+            
+    #cap thermal production
+    for i in range(0,len(econ.Power_Thermal_kWh)):
+        if econ.Power_Thermal_kWh[i] > s.Sales_HeatDemand_kWhpyr:
+            econ.Power_Thermal_kWh[i] = s.Sales_HeatDemand_kWhpyr
+    #compute
+    econ.re_init()
+    
+    #store key results with match fields
+    for item in vars(econ):
+        if np.isscalar(getattr(econ,item)):
+            setattr(s,item,getattr(econ,item))
+    
+    #visuals
+    if visuals:
+        yrs = len(econ.Cost_Capex_USD)
+        xs = np.linspace(0,yrs,yrs+1)+2025
+        fig = pylab.figure(figsize=(10.0,8.0),dpi=100)
+        ax = fig.add_subplot(211)
+        ax.axhline(y=0.0,linestyle='--',color='grey',linewidth=1)
+        ax.plot(xs,[0]+list(econ.Cost_Capex_USD),'-',label='CAPEX',color='blue')
+        ax.plot(xs,[0]+list(econ.Profit_BeforeTax_USD),'-',label='PBT',color='green')
+        ax.plot(xs,[0]+list(econ.Profit_AfterTax_USD),'-',label='PAT',color='orange')
+        ax.plot(xs,[0]+list(econ.Profit_Equity_USD),'-',label='EQUITY',color='magenta')
+        ax.legend(loc='upper left',ncol=2,fontsize=10)
+        ax.set_ylabel('Cash Flow (USD)',fontsize=10)
+        ax.set_xlabel('Date (yr)',fontsize=10)
+        ax.yaxis.set_major_formatter(pylab.matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))
+        pylab.tight_layout()
+        
+        ax2 = fig.add_subplot(212)
+        ax2.axhline(y=0.0,linestyle='--',color='grey',linewidth=1)
+        # IRR10 = (econ.Cost_Capital_USD*s.Equity_Contribution_ratio+econ.Cost_Planning_USD)*(2.0-(1.0+.1-econ.Tax_Inflation_ratio)**np.linspace(0,yrs,yrs+1))
+        # IRR10 = list(np.zeros(2+int(econ.Cost_Capital_yr-0.001))) + list(IRR10[0:yrs-1-int(econ.Cost_Capital_yr-0.001)])
+        # print(IRR10)
+        # print(len(IRR10))
+        # ax2.plot(xs,IRR10,':',label='IRR10',color='silver')
+        def vc(vals):
+            out = np.zeros(yrs+1)
+            for i in range(0,yrs):
+                out[i+1] = np.sum(vals[0:i])
+            return out
+        ax2.plot(xs,vc(econ.Cost_Capex_USD),'-',label='CAPEX',color='blue')
+        ax2.plot(xs,vc(econ.Profit_BeforeTax_USD),'-',label='PBT',color='green')
+        ax2.plot(xs,vc(econ.Profit_AfterTax_USD),'-',label='PAT',color='orange')
+        ax2.plot(xs,vc(econ.Profit_Equity_USD),'-',label='EQUITY',color='magenta')
+        ax2.legend(loc='upper left',ncol=2,fontsize=10)
+        ax2.set_ylabel('Cumulative Value (USD)',fontsize=10)
+        ax2.set_xlabel('Date (yr)',fontsize=10)
+        ax2.yaxis.set_major_formatter(pylab.matplotlib.ticker.StrMethodFormatter('${x:,.0f}'))
+        pylab.tight_layout()
+    
+    #result
+    return econ
+
+#**********************************************************************************************************
+### code verification (Texas)
+#**********************************************************************************************************
+if False:
+    #**********************************************************************************************************
+    ### costs for triplet well at Durham 6500m depth 3500 m lateral 8.625in diameter surface, intermediate, openhole
+    #**********************************************************************************************************
+    #setup
+    s = iogt.setup()
+    s.Strategy_Design_type = 'DCM'
+    s.Strategy_Target_type = 'DEEP'
+    s.Strategy_Stim_type = 'RADI'
+    s.Well_Pattern_count = 1 #pattern
+    s.Well_Spacing_m = 150.0 #m
+    s.Well_DeviatedLength_m = 1500.0 #m
+    s.Well_ProducerProportion_ratio = 1.0 #m/m
+    s.Well_Azimuth_rad = 90.0*deg #rad
+    s.Well_Dip_rad = 0.0*deg #rad
+    s.Well_RotationPhase_rad = 0.0*deg #rad
+    s.Well_RotationToe_rad = 0.0*deg #rad
+    s.Well_RotationSkew_rad = 0.0*deg #rad
+    s.Well_ProductionDiameter_m = 0.0254*7.0 #8.75 #m
+    s.Stress_ShminToSv_ratio = 0.8
+    s.Stimulation_InjectionRate_m3ps = 0.0927 #m3ps
+    s.Stimulation_ProppantConcentration_m3pm3 = 0.059 #m3/m3
+    s.Sales_HeatDemand_kWhpyr = 100578.8571 #kWh/yr
+    s.Circulation_InjectionTemperature_K = 60.0+273.15 #K
+    s.Equity_Contribution_ratio = 0.4
+    s.Sales_ContractTime_yr = 30
+    s.Debt_Tenor_yr = 30.0
+    
+    #tuning
+    s.Stimulation_Leakoff_ratio = 2.40 #3.55 #m3/m3
+    #Drilling Cost Model
+    s.Drilling_TimeMobilize_h = 0.0 #336.0 #hr
+    s.Drilling_CostMobilize_USD = 860000.0+1600000.0 #1500000.0 #USD
+    s.Drilling_TimeRigWalk_h = 48.0 #hr
+    s.Drilling_CostRigWalk_USD = 250000.0 #USD
+    # s.Drilling_TimeCut_hpm4 = 6.6e-9 #2.3e-11 #h/m4
+    # s.Drilling_TimeCut_hpm3 = 0.020 #0.5 #h/m3
+    s.Drilling_TimeCut_hpm2 = 6.6e-9 #2.3e-11 #h/m4
+    s.Drilling_TimeCut_hpm = 0.020 #0.5 #h/m3
+    s.Drilling_CostCut_USDph = 4000.0 #5082.1 #$/hr
+    s.Drilling_CostCut_USDpm4 = 1.0e-5 #1.5e-5 #4.5e-5 #$/m4
+    s.Drilling_CostCut_USDpm3 = 1500.0 #500.0 #1000.0 #$/m3
+    # s.Drilling_TimeCasing_hpm4 = 0.00 #2.0e-12 #h/m4
+    # s.Drilling_TimeCasing_hpm3 = 0.01 #0.15 #h/m3
+    # s.Drilling_TimeCasing_hpm2 = 0.00 #2.0e-12 #h/m4
+    s.Drilling_TimeCasing_hpm = 0.01 #0.15 #h/m3
+    s.Drilling_CostCasing_USDph = 3500.0 #4001.3 #$/hr
+    s.Drilling_CostCasing_USDpm4 = 0.5 #1.2 #1.4 #$/m4
+    s.Drilling_CostCasing_USDpm3 = 1500.0 #2000.0 #1460.0 #$/m3
+    s.Drilling_Learning_ratio = 0.25 #0.20 #learning rate
+    
+    #Stimulation Cost Model
+    s.Fracking_Fixed_USD = 500000.0 #1233149.0 #$
+    s.Fracking_Depth_USD = 1000.0 #638.0 #$/m
+    s.Fracking_Hourly_USDph = 5000.0 #5973.3 #$/hr
     s.Fracking_Sand_USDpkg = 0.662 #$/kg #ISP
-    s.Fracking_Fuel_USDpkWh = 0.451 #$/kWh
+    s.Fracking_Fuel_USDpkWh = 0.15 #0.451 #$/kWh
     s.Fracking_Water_USDpm3 = 22.2 #$/m3
     s.Fracking_PressureFactor_ratio = 0.8
     s.Fracking_PressureFactor_scale = 1e-8 #Pa
     s.Fracking_EquipmentWear_USDpm3 = 9.85 #$/m3
     s.Fracking_TimeFactor_hph = 1.95
-    s.Fracking_StringRadius_m = 0.075 #m
     
-    #common information
-    # Pstim = (10.7/0.9e-3)*(w_l*f_mu*f_rho*g*setup.Stimulation_InjectionRate_m3ps**1.852)/(w_f**1.852*(2*Well_FracStringRadius_m)**4.87) + s3+setup.Tension_Cohesion_Pa-bhp
+    #zero depth vtk at ground level
+    def zero_depth(setup,well):
+        for i in well:
+            i.c0 += np.asarray([0.0, 0.0, setup.Well_TargetDepth_m])
+            i.c1 += np.asarray([0.0, 0.0, setup.Well_TargetDepth_m])
     
-    #loop through each stimulation well
-    for i in range(0,len(w)):
-        #
-        #information
-    Pstim = (10.7/0.9e-3)*(w_l*f_mu*f_rho*g*setup.Stimulation_InjectionRate_m3ps**1.852)/(w_f**1.852*(2*Well_FracStringRadius_m)**4.87) + s3+setup.Tension_Cohesion_Pa-bhp
-    Stimulation_Cost_USD = Economics_FracFixed_USD
-    Stimulation_Cost_USD += Economics_FracDepth_USD*s.Well_TargetDepth_m
-    Stimulation_Time_h = Economics_FracTimeFactor_hph*((vol*f_s)/setup.Stimulation_InjectionRate_m3ps)/(60*60)*injectors
-    Stimulation_Cost_USD += Economics_FracEquipment_USDpm3*vol*f_s*(Economics_FracPressureFactor_ratio+(Economics_FracPressureFactor_scale*Pstim)**3)*injectors
-    Stimulation_Cost_USD += Economics_FracFuel_USDpkWh*Stimulation_Time_h*Pstim*setup.Stimulation_InjectionRate_m3ps*1e-3
-    Stimulation_Cost_USD += Economics_FracWater_USDpm3*vol*f_s*injectors
-    Stimulation_Cost_USD += Economics_FracSand_USDpkg*mass*f_s*injectors
-    Stimulation_Time_h += Economics_WellheadTime_h
-    Stimulation_Cost_USD += Stimulation_Time_h*Economics_FracHourly_USDph
-    
-    
-    
-"""
-    
-    #**********************************************************************************************************
-    ### calcuate stimulation costs
-    #**********************************************************************************************************
-            
-    #estimate stimulation cost
-    Economics_FracFixed_USD = 1233149.0 #$
-    Economics_FracDepth_USD = 638.0 #$/m
-    Economics_FracHourly_USDph = 5973.3 #$/hr
-    Economics_FracSand_USDpkg = 0.662 #$/kg #ISP
-    # Economics_FracSand_USDpkg = 0.248 #$/kg #Sand
-    Economics_FracFuel_USDpkWh = 0.451 #$/kWh
-    Economics_FracWater_USDpm3 = 22.2 #$/m3
-    Economics_FracPressureFactor_ratio = 0.8
-    Economics_FracPressureFactor_scale = 1e-8 #Pa
-    Economics_FracEquipment_USDpm3 = 9.85 #$/m3
-    Economics_FracTimeFactor_hph = 1.95
-    Well_FracStringRadius_m = 0.075 #m
-    Well_FracStringRadius_m = w_R #m
-    
-    #information
-    Pstim = (10.7/0.9e-3)*(w_l*f_mu*f_rho*g*setup.Stimulation_InjectionRate_m3ps**1.852)/(w_f**1.852*(2*Well_FracStringRadius_m)**4.87) + s3+setup.Tension_Cohesion_Pa-bhp
-    Stimulation_Cost_USD = Economics_FracFixed_USD
-    Stimulation_Cost_USD += Economics_FracDepth_USD*rockdeep
-    Stimulation_Time_h = Economics_FracTimeFactor_hph*((vol*f_s)/setup.Stimulation_InjectionRate_m3ps)/(60*60)*injectors
-    Stimulation_Cost_USD += Economics_FracEquipment_USDpm3*vol*f_s*(Economics_FracPressureFactor_ratio+(Economics_FracPressureFactor_scale*Pstim)**3)*injectors
-    Stimulation_Cost_USD += Economics_FracFuel_USDpkWh*Stimulation_Time_h*Pstim*setup.Stimulation_InjectionRate_m3ps*1e-3
-    Stimulation_Cost_USD += Economics_FracWater_USDpm3*vol*f_s*injectors
-    Stimulation_Cost_USD += Economics_FracSand_USDpkg*mass*f_s*injectors
-    Stimulation_Time_h += Economics_WellheadTime_h
-    Stimulation_Cost_USD += Stimulation_Time_h*Economics_FracHourly_USDph
-    
-    #**********************************************************************************************************
-    ### Cost of capital economics
-    #**********************************************************************************************************
-    #power plant cost
-    Power_PlantCost_USD = np.max(Bulk)*setup.Economics_EquipmentCost_USDpkW
+    #header
+    print('*** Validation reference: GeoDT - cost models 10-14-25.xlsx ***')
+    root = 'Colorado'
+    case = 0
 
-#example implementation
-if False:
-    #economics solver configuration
-    econ = cashflow()
+    #vertical twin (GLADE)
+    case += 1
+    s.Well_TargetDepth_m = 6100.0-1500.0 #m
+    s.Well_Dip_rad = 80*deg #rad
+    s.Well_DeviatedLength_m = 3000.0
+    s.Well_RotationPhase_rad = 90*deg #rad
+    s.Well_Spacing = 30.0 #m
+    s.Well_ProducerCount_wells = 1 #wells
+    s.Stimulation_TargetClusters_count = 0 #clusters
+    s.Stimulation_TargetRadius_m = 150.0 #m
+    s.re_init()
+    name = '%s_%.0f_%.0f_%i_%.0f_%.0f' %(root,s.Well_TargetDepth_m,s.Well_DeviatedLength_m,s.Well_ProducerCount_wells+s.Well_InjectorCount_wells,
+                                        s.Stimulation_TargetRadius_m,s.Stimulation_TargetClusters_count)
+    w = wells.gen_wells(s)
+    for i in w:
+        if i.type in ['perfcluster','procluster']:
+            i.type = 'screen'
+    wells.export(name+'.csv',w)
+    time, cost = drilling(s,w,True)
+    time, cost = fracking(s,w,True)
+    zero_depth(s,w)
+    wells.vtk(w,name)
+    pylab.tight_layout()
+    pylab.savefig(name+'.png', format='png')
+    print('\n Case %i: %s' %(case, name))
+    print('    GeoDT: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(s.Cost_Drilling_USD, s.Cost_Drilling_h/24.0, 
+            s.Cost_Stimulation_USD,s.Cost_Stimulation_h/24.0,
+            s.Stimulation_TargetVolume_m3pfrac*s.Stimulation_TargetClusters_count*s.Well_InjectorCount_wells))
+    print('    PASON: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(-18000000, 48.0,
+            0.0, 0.0,
+            0.0))
     
-
-    econ.Currency_Exchange_USDpGBP = ...
-    econ.Time_Planning_yr = 1 #yr, final investment decision
-    econ.Time_Construction_yr = np.max([2,1+int((Drilling_Time_h+Stimulation_Time_h)/(364.75*24))]) #yr, construction time
-    econ.Time_Lifespan_yr = int(econ.Time_Construction_yr+econ.Time_Planning_yr+tp[-1]/(364.75*24*60*60)) #yr, total project life
-    econ.Cost_Reservoir_USD = -1.0*(Drilling_Cost_USD+Stimulation_Cost_USD)/econ.Currency_Exchange_USDpGBP #USD, drilling and stimulation costs
-    econ.Cost_Facilities_USD = -Power_PlantCost_USD/econ.Currency_Exchange_USDpGBP #USD, power plant cost
-    econ.Power_Gross_kWh =   np.asarray(gap + list(0.5*(Bulk[1:]+Bulk[:-1])*me[1:]/mt))*(tp[1]-tp[0])/(60*60)
-    econ.Power_Thermal_kWh = np.asarray(gap + list(0.5*(heat[1:]+heat[:-1])))*(tp[1]-tp[0])/(60*60)
-    econ.Power_Pumping_kWh = np.asarray(gap + list(0.5*(Pump[1:]+Pump[:-1])))*(tp[1]-tp[0])/(60*60)
-
-    
-    econ.re_init()
-    
-    """
-    
-
-#testing
-if True:
-    s = iogt.setup()
-    s.Strategy_Design_type = 'EGS' #'ALL' 'EGS' 'AGS' 'CGS' 'O&G' 'DCM' 'FGS'
-    s.Strategy_Target_type = 'Deep' #'Deep','Temp'
-    s.Strategy_Stim_type = 'Radi' #'Volu','Radi'
+    #base case
+    root = 'Texas'
+    case += 1
     s.Well_TargetDepth_m = 6500.0 #m
-    s.Well_ProducerCount_wells = 2 #wells
-    s.Well_Pattern_count = 1 #pattern
-    s.Well_Spacing_m = 135.0 #m
-    s.Well_DeviatedLength_m = 3000.0 #m
-    s.Well_ProducerProportion_ratio = 0.8 #m/m
-    s.Well_Azimuth_rad = 90.0*deg #rad
-    s.Well_Dip_rad = 0.0*deg #rad
-    s.Well_RotationPhase_rad = 0.0*deg #rad
-    s.Well_RotationToe_rad = 0.0*deg #rad
-    s.Well_RotationSkew_rad = 0.0*deg #rad
-    s.Well_ProductionDiameter_m = 0.0254*8.625 #m
+    s.Well_Dip_rad = 0.0*deg
+    s.Well_RotationPhase_rad = 0.0*deg
+    s.Well_DeviatedLength_m = 1500.0
+    s.Well_ProducerCount_wells = 1 #wells
+    s.Stimulation_TargetClusters_count = 27 #clusters
+    s.Stimulation_TargetRadius_m = 150.0 #m
+    s.re_init()
+    name = '%s_%.0f_%.0f_%i_%.0f_%.0f' %(root,s.Well_TargetDepth_m,s.Well_DeviatedLength_m,s.Well_ProducerCount_wells+s.Well_InjectorCount_wells,
+                                        s.Stimulation_TargetRadius_m,s.Stimulation_TargetClusters_count)
     w = wells.gen_wells(s)
-    wells.vtk(w,'EGS3_Durham_D6500_L3000')
+    wells.export(name+'.csv',w)
     time, cost = drilling(s,w,True)
+    time, cost = fracking(s,w,True)
+    zero_depth(s,w)
+    wells.vtk(w,name)
     pylab.tight_layout()
-    pylab.savefig('EGS3_Durham_D6500_L3000.png', format='png')
+    pylab.savefig(name+'.png', format='png')
+    print('\n Case %i: %s' %(case, name))
+    print('    GeoDT: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(s.Cost_Drilling_USD, s.Cost_Drilling_h/24.0, 
+            s.Cost_Stimulation_USD,s.Cost_Stimulation_h/24.0,
+            s.Stimulation_TargetVolume_m3pfrac*s.Stimulation_TargetClusters_count*s.Well_InjectorCount_wells))
+    print('    XLSX: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(-28800000, 163,
+            -17567294, 20.0,
+            68583.4))
     
-    s = iogt.setup()
-    s.Strategy_Design_type = 'EGS' #'ALL' 'EGS' 'AGS' 'CGS' 'O&G' 'DCM' 'FGS'
-    s.Strategy_Target_type = 'Deep' #'Deep','Temp'
-    s.Strategy_Stim_type = 'Radi' #'Volu','Radi'
-    s.Well_TargetDepth_m = 3000.0 #m
-    s.Well_ProducerCount_wells = 2 #wells
-    s.Well_Pattern_count = 1 #pattern
-    s.Well_Spacing_m = 135.0 #m
-    s.Well_DeviatedLength_m = 1500.0 #m
-    s.Well_ProducerProportion_ratio = 0.8 #m/m
-    s.Well_Azimuth_rad = 90.0*deg #rad
-    s.Well_Dip_rad = 0.0*deg #rad
-    s.Well_RotationPhase_rad = 0.0*deg #rad
-    s.Well_RotationToe_rad = 0.0*deg #rad
-    s.Well_RotationSkew_rad = 0.0*deg #rad
-    s.Well_ProductionDiameter_m = 0.0254*8.625 #m
+    #more wells
+    case += 1
+    s.Well_TargetDepth_m = 6500.0 #m
+    s.Well_DeviatedLength_m = 1500.0
+    s.Well_ProducerCount_wells = 5 #wells
+    s.Stimulation_TargetClusters_count = 27 #clusters
+    s.Stimulation_TargetRadius_m = 150.0 #m
+    s.re_init()
+    name = '%s_%.0f_%.0f_%i_%.0f_%.0f' %(root,s.Well_TargetDepth_m,s.Well_DeviatedLength_m,s.Well_ProducerCount_wells+s.Well_InjectorCount_wells,
+                                        s.Stimulation_TargetRadius_m,s.Stimulation_TargetClusters_count)
     w = wells.gen_wells(s)
-    wells.vtk(w,'EGS3_Durham_D3000_L1500')
+    wells.export(name+'.csv',w)
     time, cost = drilling(s,w,True)
+    time, cost = fracking(s,w,True)
+    zero_depth(s,w)
+    wells.vtk(w,name)
     pylab.tight_layout()
-    pylab.savefig('EGS3_Durham_D3000_L1500.png', format='png')
+    pylab.savefig(name+'.png', format='png')
+    print('\n Case %i: %s' %(case, name))
+    print('    GeoDT: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(s.Cost_Drilling_USD, s.Cost_Drilling_h/24.0, 
+            s.Cost_Stimulation_USD,s.Cost_Stimulation_h/24.0,
+            s.Stimulation_TargetVolume_m3pfrac*s.Stimulation_TargetClusters_count*s.Well_InjectorCount_wells))
+    print('    XLSX: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(-104100000.0, 505,
+            -17567294*4, 20.0*4,
+            68583.4*4))
     
+    #shallower
+    case += 1
+    s.Well_TargetDepth_m = 3500.0 #m
+    s.Well_DeviatedLength_m = 1500.0
+    s.Well_ProducerCount_wells = 1 #wells
+    s.Stimulation_TargetClusters_count = 27 #clusters
+    s.Stimulation_TargetRadius_m = 150.0 #m
+    s.re_init()
+    name = '%s_%.0f_%.0f_%i_%.0f_%.0f' %(root,s.Well_TargetDepth_m,s.Well_DeviatedLength_m,s.Well_ProducerCount_wells+s.Well_InjectorCount_wells,
+                                        s.Stimulation_TargetRadius_m,s.Stimulation_TargetClusters_count)
+    w = wells.gen_wells(s)
+    wells.export(name+'.csv',w)
+    time, cost = drilling(s,w,True)
+    time, cost = fracking(s,w,True)
+    zero_depth(s,w)
+    wells.vtk(w,name)
+    pylab.tight_layout()
+    pylab.savefig(name+'.png', format='png')
+    print('\n Case %i: %s' %(case, name))
+    print('    GeoDT: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(s.Cost_Drilling_USD, s.Cost_Drilling_h/24.0, 
+            s.Cost_Stimulation_USD,s.Cost_Stimulation_h/24.0,
+            s.Stimulation_TargetVolume_m3pfrac*s.Stimulation_TargetClusters_count*s.Well_InjectorCount_wells))
+    print('    XLSX: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(-20853000.0, 115,
+            -17567294, 20.0,
+            68583.4))
+    
+    #deeper
+    case += 1
+    s.Well_TargetDepth_m = 7400.0 #m
+    s.Well_DeviatedLength_m = 1500.0
+    s.Well_ProducerCount_wells = 1 #wells
+    s.Stimulation_TargetClusters_count = 27 #clusters
+    s.Stimulation_TargetRadius_m = 150.0 #m
+    s.re_init()
+    name = '%s_%.0f_%.0f_%i_%.0f_%.0f' %(root,s.Well_TargetDepth_m,s.Well_DeviatedLength_m,s.Well_ProducerCount_wells+s.Well_InjectorCount_wells,
+                                        s.Stimulation_TargetRadius_m,s.Stimulation_TargetClusters_count)
+    w = wells.gen_wells(s)
+    wells.export(name+'.csv',w)
+    time, cost = drilling(s,w,True)
+    time, cost = fracking(s,w,True)
+    wells.vtk(w,name)
+    pylab.tight_layout()
+    pylab.savefig(name+'.png', format='png')
+    print('\n Case %i: %s' %(case, name))
+    print('    GeoDT: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(s.Cost_Drilling_USD, s.Cost_Drilling_h/24.0, 
+            s.Cost_Stimulation_USD,s.Cost_Stimulation_h/24.0,
+            s.Stimulation_TargetVolume_m3pfrac*s.Stimulation_TargetClusters_count*s.Well_InjectorCount_wells))
+    print('    XLSX: Drill = $%.0f and %.0f days; Stim = $%.0f, %.0f days, and %.0f m3 water' 
+          %(-30900000, 179,
+            -17567294, 20.0,
+            68583.4))

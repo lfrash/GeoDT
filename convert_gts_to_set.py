@@ -5,7 +5,8 @@ Convert gts files to set files (row vs column format)
 
 #imports
 import numpy as np
-from plugins.solvers.libs import csv
+# from plugins.solvers.libs import csv
+from plugins.solvers.libs import iogt
 import tkinter as tk
 from tkinter import filedialog
 import os
@@ -32,4 +33,8 @@ root.destroy()
 #     out += [[names[i], data[names[i]][0], data[names[i]][1], data[names[i]][2], data[names[i]][3]]]
 # csv.save_set(out,filename[:-4]+'.set')
 
-csv.convert(filename)
+# csv.convert(filename)
+
+iogt.convert_5_to_6(filename)
+
+

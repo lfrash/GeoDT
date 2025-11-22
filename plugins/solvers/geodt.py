@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-print('GeoDT_5.0.0')
+print('GeoDT_6')
 
 # ****************************************************************************
 # Calculate economic potential of EGS & optimize borehole layout with caging
@@ -15,13 +15,13 @@ print('GeoDT_5.0.0')
 # ****************************************************************************
 if __package__ is None or __package__ == '':
     from libs.linalg import solve
-    from libs import io
+    from libs import iogt
     from libs import vtk as sg
     from libs import properties
     from libs.units import *
 else:
     from .libs.linalg import solve
-    from .libs import io
+    from .libs import iogt
     from .libs import vtk as sg
     from .libs import properties
     from .libs.units import *
@@ -615,7 +615,7 @@ class cauchy: #functions modified from JPM
             pylab.close()
         return str_dip
 
-setup = io.setup
+setup = iogt.setup
 # #model definition
 # class setup:
 #     def __init__(self):
@@ -2201,7 +2201,7 @@ class core:
                 xR = [0,1]; yR = [0,1]; zR = [0,1]
             print([xR,yR,zR])
             #pipes and wells
-            if (int(self.pipes.typ[i]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('screen')]): #pipe, Hazen-Williams
+            if (int(self.pipes.typ[i]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('procluster'),typ('screen')]): #pipe, Hazen-Williams
                 #well info
                 dip = self.wells[self.pipes.fID[i]].dip #dip
                 azn = self.wells[self.pipes.fID[i]].azn #azimuth
@@ -3911,7 +3911,7 @@ class core:
                         c = -2.0*np.abs(dT)*dt
                         dE0 = (-b + (b**2.0 - 4.0*a*c)**0.5)/(2.0*a)
                         #get extracted energy - Et, thermal radius - R0, heat flow rate - Qt
-                        if (int(self.pipes.typ[p]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('screen'),typ('perf')]):  #pipe, radial heat flow
+                        if (int(self.pipes.typ[p]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('procluster'),typ('screen'),typ('perf')]):  #pipe, radial heat flow
                             #energy withdraw
                             E0p = dE0*2.0*pi*Rir*Lp[p] #kJ
                             Esp = Et[t,p]
@@ -4051,7 +4051,7 @@ class core:
                 dT = np.max([np.abs(dT0),np.abs(dT)])
 
                 #thermal radius for next time step
-                if (int(self.pipes.typ[i]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('screen'),typ('perf')]): #pipe, radial heat flow
+                if (int(self.pipes.typ[i]) in [typ('injector'),typ('producer'),typ('pipe'),typ('perfcluster'),typ('procluster'),typ('screen'),typ('perf')]): #pipe, radial heat flow
                     if (dT > 0) and (Et[t+1,i] > 0):
                         R0[i] = np.exp(ERm*(np.log(np.abs(Et[t+1,i]/(Lp[i]*dT))))+ERb) + Rir #+2.0*Rir # m
                     #Et[0,i] = np.exp((np.log(R0[i])-ERb)/ERm)*Lp[i]*(Tr-0.5*(Tn[Y[i][1]]+Tn[Y[i][0]])) # kJ

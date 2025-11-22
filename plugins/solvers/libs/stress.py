@@ -198,17 +198,29 @@ class cauchy: #functions modified from JPM
             ax = fig.add_subplot(111, projection='polar')
             ax.set_theta_zero_location("N")
             ax.set_theta_direction(-1)
-            pylab.pcolormesh(dip_dir_radians,dip_angle_deg,np.ma.masked_where(np.isnan(criticalDelPpG),criticalDelPpG), 
-                            #vmin=110.0*MPa, vmax=150.0*MPa,cmap='rainbow_r') #vmin=0.0*MPa, vmax=self.SH,cmap='rainbow_r')
-                            vmin=self.Sh*0.5, vmax=np.max([self.SV,self.SH]),cmap='rainbow_r')
-            ax.plot(dip_dir_radians[dP3[2]],dip_angle_deg[dP3[1]],'om')
-            ax.plot(str_dip[0,0]-np.pi/2,str_dip[0,1]/deg,'or')
-            ax.plot(str_dip[:,0]-np.pi/2,str_dip[:,1]/deg,'.k')
+            nor_dir_radians = dip_dir_radians + np.pi
+            pylab.pcolormesh(nor_dir_radians,dip_angle_deg,np.ma.masked_where(np.isnan(criticalDelPpG),criticalDelPpG), 
+                        vmin=self.Sh*0.5, vmax=np.max([self.SV,self.SH]),cmap='rainbow_r')
+            ax.plot(str_dip[0,0]+np.pi/2,str_dip[0,1]/deg,'.k')
+            ax.plot(str_dip[1,0]+np.pi/2,str_dip[1,1]/deg,'ob')
+            ax.plot(str_dip[2,0]+np.pi/2,str_dip[2,1]/deg,'xc')
             ax.grid(True)
             ax.set_rgrids([0,30,60,90],labels=[])
             ax.set_thetagrids([0,90,180,270])
             pylab.colorbar()
-            ax.set_title("Critical pressure (dip direction and dip angle)", va='bottom')
+            ax.set_title("Critical pressure (pole plot)", va='bottom')
             pylab.savefig('check.png', format='png',dpi=128)
             pylab.close()
         return str_dip
+
+#verification
+if False:
+    #shmin 10 deg down and SSE and normal faulting
+    s123 = np.zeros(3,dtype=float)
+    s123[0] = 2700.0*9.81*5000.0
+    s123[2] = 0.5*s123[0]
+    s123[1] = 1.5*s123[2]
+    tensor = cauchy()
+    tensor.set_sigG_from_Principal(s123[2], s123[1], s123[0], 157.5*deg, 10.0*deg)
+    str_dip = tensor.get_conjugates(plots=True)
+    s123.sort(axis=0)

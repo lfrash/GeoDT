@@ -10,10 +10,14 @@ import numpy as np
 if __package__ is None or __package__ == '':
     import iogt
     import vtk as sg
+    import csv
+    from typ import typ
     from units import *
 else:
     from . import iogt
     from . import vtk as sg
+    from . import csv
+    from .typ import typ
     from .units import *
 deg=deg
 yr=yr
@@ -21,34 +25,6 @@ cP=cP
 darcy=darcy
 mD=mD
 g=g
-
-#definitions and cross referencing for pipe types
-def typ(key):
-    ret = []
-    choices = np.asarray([
-            ['shunt','-5'],
-            ['screen','-4'],
-            ['perfcluster','-3'],
-            ['producer', '-2'],
-            ['injector', '-1'],
-            ['pipe', '0'],
-            ['fracture', '1'],
-            ['propped', '2'],
-            ['darcy', '3'],
-            ['choke', '4'],
-            ['perf', '5'],
-            ['boundary', '6']
-            ])
-    key = str(key)
-    ret = np.where(choices == key)
-    if ret[1] == 0:
-        ret = int(choices[ret[0],1][0])
-    elif ret[1] == 1:
-        ret = str(choices[ret[0],0][0])
-    else:
-        print( '**invalid pipe type defined**')
-        ret = []
-    return ret
 
 #line objects
 class line:
@@ -80,47 +56,131 @@ class line:
         self.vNor = self.vNor/np.linalg.norm(self.vNor)
         self.c1 = self.c0 + self.vAxi*self.leg
         self.typ = typ(self.type)
-
-def vtk(wells,fname='default',scale=0.002*1500):
-        #******   scaling       ******
-        # r = 0.002*self.rock.size
-        r = scale
         
-        #******   paint wells   ******
-        w_obj = [] #fractures
-        w_col = [] #fractures colors
-        w_lab = [] #fractures color labels
-        w_lab = ['Well_Number','Well_Type','Inner_Radius','Roughness','Outer_Radius']
-        w_0 = []
-        w_1 = []
-        w_2 = []
-        w_3 = []
-        w_4 = []
-        #nodex = np.asarray(self.nodes)
-        for i in range(0,len(wells)):
-            #add colors
-            w_0 += [i]
-            w_1 += [wells[i].typ]
-            w_2 += [wells[i].ra]
-            w_3 += [wells[i].rgh]
-            w_4 += [wells[i].rc]
-            #add geometry
-            azn = wells[i].azn
-            dip = wells[i].dip
-            leg = wells[i].leg
-            vAxi = np.asarray([np.sin(azn)*np.cos(-dip), np.cos(azn)*np.cos(-dip), np.sin(-dip)])
-            c0 = wells[i].c0
-            c1 = c0 + vAxi*leg
-            w_obj += [sg.cylObj(x0=c0, x1=c1, r=1.5*r)]
-        #vtk file
-        w_col = [w_0,w_1,w_2,w_3,w_4]
-        sg.writeVtk(w_obj, w_col, w_lab, vtkFile=(fname + '_wells.vtk'))
+# ************************************************************************
+# create vtk file for wells
+# ************************************************************************
+def vtk(wells,fname='default',scale=0.002*1500):
+    #******   scaling       ******
+    # r = 0.002*self.rock.size
+    r = scale
+    
+    #******   paint wells   ******
+    w_obj = [] #fractures
+    w_col = [] #fractures colors
+    w_lab = [] #fractures color labels
+    w_lab = ['Well_Number','Well_Type','Inner_Radius','Roughness','Outer_Radius']
+    w_0 = []
+    w_1 = []
+    w_2 = []
+    w_3 = []
+    w_4 = []
+    #nodex = np.asarray(self.nodes)
+    for i in range(0,len(wells)):
+        #add colors
+        w_0 += [i]
+        w_1 += [wells[i].typ]
+        w_2 += [wells[i].ra]
+        w_3 += [wells[i].rgh]
+        w_4 += [wells[i].rc]
+        #add geometry
+        azn = wells[i].azn
+        dip = wells[i].dip
+        leg = wells[i].leg
+        vAxi = np.asarray([np.sin(azn)*np.cos(-dip), np.cos(azn)*np.cos(-dip), np.sin(-dip)])
+        c0 = wells[i].c0
+        c1 = c0 + vAxi*leg
+        w_obj += [sg.cylObj(x0=c0, x1=c1, r=1.5*r)]
+    #vtk file
+    w_col = [w_0,w_1,w_2,w_3,w_4]
+    sg.writeVtk(w_obj, w_col, w_lab, vtkFile=(fname + '.vtk'))
+
+# ************************************************************************
+# create vtk file for wells
+# ************************************************************************
+def vtk_zero(setup,wells,fname='default',scale=0.002*1500):
+    #******   scaling       ******
+    # r = 0.002*self.rock.size
+    r = scale
+    
+    #******   paint wells   ******
+    w_obj = [] #fractures
+    w_col = [] #fractures colors
+    w_lab = [] #fractures color labels
+    w_lab = ['Well_Number','Well_Type','Inner_Radius','Roughness','Outer_Radius']
+    w_0 = []
+    w_1 = []
+    w_2 = []
+    w_3 = []
+    w_4 = []
+    #nodex = np.asarray(self.nodes)
+    for i in range(0,len(wells)):
+        #add colors
+        w_0 += [i]
+        w_1 += [wells[i].typ]
+        w_2 += [wells[i].ra]
+        w_3 += [wells[i].rgh]
+        w_4 += [wells[i].rc]
+        #add geometry
+        azn = wells[i].azn
+        dip = wells[i].dip
+        leg = wells[i].leg
+        vAxi = np.asarray([np.sin(azn)*np.cos(-dip), np.cos(azn)*np.cos(-dip), np.sin(-dip)])
+        c0 = wells[i].c0 - np.asarray([0,0,setup.Well_TargetDepth_m])
+        c1 = c0 + vAxi*leg 
+        w_obj += [sg.cylObj(x0=c0, x1=c1, r=1.5*r)]
+    #vtk file
+    w_col = [w_0,w_1,w_2,w_3,w_4]
+    sg.writeVtk(w_obj, w_col, w_lab, vtkFile=(fname + '.vtk'))
+
+# ************************************************************************
+# create csv file for wells
+# ************************************************************************
+#create a file containing all well information
+def export(filename='well_exp.csv',w=[]):
+    for i in range(0,len(w)):
+        out = [['num',i]]
+        for var in vars(w[i]):
+            v = getattr(w[i],var)
+            if np.isscalar(v):
+                out += [[var,v]]
+            elif var in ['c0','c1']:
+                out += [['%s_E'%(var),v[0]]]
+                out += [['%s_N'%(var),v[1]]]
+                out += [['%s_Z'%(var),v[2]]]
+        if i < 1:
+            csv.save_csv(out=out,filename=filename,append=False)
+        else:
+            csv.save_csv(out=out,filename=filename,append=True)
+
+# ************************************************************************
+# read csv file for wells
+# ************************************************************************
+#create a file containing all well information
+def intake(filename='well_exp.csv'):
+    names, data = csv.load_csv(filename)
+    w = []
+    for i in range(0,len(data)):
+        x0 = data['c0_E'][i]
+        y0 = data['c0_N'][i]
+        z0 = data['c0_Z'][i]
+        leg = data['leg'][i]
+        azn = data['azn'][i]
+        dip = data['dip'][i]
+        w_type = data['type'][i]
+        ra = data['ra'][i]
+        rb = data['rb'][i]
+        rc = data['rc'][i]
+        rgh = data['rgh'][i]
+        pID = int(data['pID'][i]+0.001)
+        w += [line(x0,y0,z0,leg,azn,dip,w_type,ra,rb,rc,rgh,pID)]
+    return w
 
 # ************************************************************************
 # well placement
 # ************************************************************************
 def gen_wells(s=iogt.setup()):
-    print( '*** well placement module ***')
+    #print( '*** well placement module ***')
 
     #initialization
     wells = []
@@ -175,7 +235,7 @@ def gen_wells(s=iogt.setup()):
     # ************************************************************************
     # O&G - wine-rack style wells with casing to bottom in all wells
     # ************************************************************************
-    if (s.Strategy_Design_type == 'O&G'):
+    if s.Strategy_Design_type.upper() in ['O&G','DCM']:
         #make wells parallel
         vPro = vInj
         #populate rack of production and injection wells
@@ -271,6 +331,12 @@ def gen_wells(s=iogt.setup()):
         for i in range(0,len(p0s)):
             azn, dip, dis = sg.azn_dip(p1s[i],p2s[i])
             wells += [line(p1s[i][0],p1s[i][1],p1s[i][2],dis,azn,dip,'screen',pra,prb,prc,rgh,pid[i])]
+        #stimulate all wells for O&G
+        if s.Strategy_Design_type.upper() == 'O&G':
+            for w in wells:
+                if typ(w.typ) == 'screen':
+                    w.type = 'procluster'
+                    w.typ = typ('procluster')
             
     # ************************************************************************
     # AGS - closed loop wells with casing
@@ -362,7 +428,7 @@ def gen_wells(s=iogt.setup()):
     # ************************************************************************
     # FGS - zonally isolated injection well with uncased producers #TODO update module to account for well friction to surface in the injector and to have surface at correct elevation
     # ************************************************************************
-    elif (s.Strategy_Design_type in ['FGS']):
+    elif (s.Strategy_Design_type in ['FGS','KGS']):
 
         #phase of production wells
         p0s = []
@@ -537,53 +603,97 @@ def gen_wells(s=iogt.setup()):
         for i in range(0,num):
             azn, dip, dis = sg.azn_dip(p1s[i],p2s[i])
             wells += [line(p1s[i][0],p1s[i][1],p1s[i][2],dis,azn,dip,'screen',pra,prb,prc,rgh,1+i+n)]
+            
+    # ************************************************************************
+    ### offset geometry to zero-surface positioning
+    # ************************************************************************
+    leg = s.Well_DeviatedLength_m
+    azn = s.Well_Azimuth_rad
+    dip = s.Well_Dip_rad
+    depth = s.Well_TargetDepth_m
+    offset = np.asarray([0.0, 0.0, -depth])
+    if s.Well_Pattern_count > 1:
+        offset += 0.5*(leg+20)*np.asarray([np.sin(azn)*np.cos(-dip), np.cos(azn)*np.cos(-dip), 0.0])
+    print(offset)
+    for w in wells:
+        w.c0 += offset
+        w.c1 += offset
     
     # ************************************************************************
-    # return
+    ### return
     # ************************************************************************
     return wells
 
 #testing
 if False:
     x = iogt.setup()
+    x.Well_DeviatedLength_m = 1500
+    x.Well_Dip_rad = 0
+    
     x.Strategy_Design_type = 'EGS'
     x.Well_ProducerCount_wells = 3
     w = gen_wells(x)
-    vtk(w,'EGS3',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'EGS3',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'EGS'
     x.Well_ProducerCount_wells = 1
     x.Well_RotationPhase_rad = np.pi/2
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'EGS2',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'EGS2',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'AGS'
     x.Well_ProducerCount_wells = 2
     x.Well_RotationPhase_rad = 0.0
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'AGS2',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'AGS2',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'AGS'
     x.Well_ProducerCount_wells = 11
+    x.Well_Dip_rad = 45*deg
+    x.Well_Spacing_m = 75
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'AGS11',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'AGS11',0.005*x.Domain_Size_m)
+    x.Well_Dip_rad = 0.0*deg
+    x.Well_Spacing_m = 175
     
     x.Strategy_Design_type = 'O&G'
     x.Well_ProducerCount_wells = 2
     x.Well_RotationPhase_rad = np.pi/8
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'O&G2',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'O&G2',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'O&G'
     x.Well_ProducerCount_wells = 4
     x.Well_RotationPhase_rad = np.pi/8
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'O&G4',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'O&G4',0.005*x.Domain_Size_m)
+
+    #upscaling chunks
+    for i in w:
+        i.c0[0] += -50
+        i.c0[2] += -400
+        i.c1[0] == -50
+        i.c1[2] += -400
+    vtk_zero(x,w,'O&G8',0.005*x.Domain_Size_m)
+    for i in w:
+        i.c0[0] += -50
+        i.c0[2] += 400
+        i.c1[0] == -50
+        i.c1[2] += 400
+        i.azn = -i.azn
+        i.c1[1] = -i.c1[1]
+    vtk_zero(x,w,'O&G12',0.005*x.Domain_Size_m)
+    for i in w:
+        i.c0[0] += -50
+        i.c0[2] += -400
+        i.c1[0] == -50
+        i.c1[2] += -400
+    vtk_zero(x,w,'O&G16',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'CGS'
     x.Well_ProducerCount_wells = 1
@@ -591,7 +701,7 @@ if False:
     x.Well_RotationPhase_rad = np.pi/6
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'CGS0',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'CGS0',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'CGS'
     x.Well_ProducerCount_wells = 3
@@ -601,7 +711,7 @@ if False:
     x.Well_Spacing_m = 2000
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'CGS3',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'CGS3',0.005*x.Domain_Size_m)
     
     x.Strategy_Design_type = 'FGS'
     x.Well_ProducerCount_wells = 4
@@ -610,4 +720,4 @@ if False:
     x.Well_Spacing_m = sp
     x.re_init()
     w = gen_wells(x)
-    vtk(w,'FGS4',0.002*x.Domain_Size_m)
+    vtk_zero(x,w,'FGS4',0.005*x.Domain_Size_m)

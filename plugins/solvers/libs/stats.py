@@ -95,3 +95,9 @@ def norm_trunc(nsam,mu=0.0,dev=1.0,
             s0 = s0*(1-r_pl) + r_dr*(r_pl)
             break
     return s0
+
+def uniform(nsam,lo,hi):
+    return np.random.uniform(0,1,nsam)*(float(hi)-float(lo))+float(lo)
+
+def loguniform(nsam,lo,hi):
+    return 10.0**(np.random.uniform(0,1,nsam)*(np.log10(float(hi))-np.log10(float(lo)))+np.log10(float(lo)))

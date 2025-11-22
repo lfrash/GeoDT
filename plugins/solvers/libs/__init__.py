@@ -1,5 +1,5 @@
 # Define the __all__ variable
-__all__ = ["linalg", "properties","vtk","economics","csv","iogt","stats","units","visualization","stress","wells"]
+__all__ = ["linalg", "properties","vtk","economics","csv","iogt","stats","units","visualization","stress","wells","power","fractures","typ","gringarten","pickler","box"]
 
 # Import the submodules
 from . import linalg
@@ -13,3 +13,9 @@ from . import units
 from . import visualization
 from . import stress
 from . import wells
+from . import power
+from . import fractures
+from . import typ
+from . import gringarten
+from . import pickler
+from . import box

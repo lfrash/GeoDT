@@ -22,6 +22,7 @@ darcy=9.869233*10**-13#m2
 mD=darcy*10.0**3.0#m2
 yr=365.2425*24.0*60.0*60.0#s
 mLmin = 1.66667e-8 #m3/s
-mDft = 3.324e15 #m2m
+mDft = 1/3.324e15 #m2m
+bblmin = 1/377.38863 #m3/s
 
 #from metric

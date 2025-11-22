@@ -1,4 +1,6 @@
-""" Classes and routines for generating 3D objects
+# -*- coding: utf-8 -*-
+""" 
+Classes and routines for generating 3D objects
 """
 import math
 import numpy as np
@@ -149,7 +151,55 @@ def writeVtk(objectList,scalars,scalarNames,vtkFile,name="vtkObjects"):
             iObj+=1
     fd.write("\n")
     fd.close()
+
+def structVtk(ns,o0,ss,data,label,fname):
+    head = '# vtk DataFile Version 2.0\n'
+    head += 'pointcloud\n'
+    head += 'ASCII\n'
+    head += 'DATASET STRUCTURED_POINTS\n'
+    head += 'DIMENSIONS %i %i %i\n' %(ns[0],ns[1],ns[2])
+    head += 'ORIGIN %f %f %f\n' %(o0[0],o0[1],o0[2])
+    head += 'SPACING %f %f %f\n' %(ss[0],ss[1],ss[2])
+    head += 'POINT_DATA %i\n' %(ns[0]*ns[1]*ns[2])
+    head += 'SCALARS ' + label + ' float 1\n'
+    head += 'LOOKUP_TABLE default'
     
+    #print(head)
+    
+    try:
+        with open(fname,'r') as f:
+            test = f.readline()
+        f.close()
+        if test != '':
+            with open(fname,'w') as f:
+                f.write(head + '\n')
+                out = ''
+                for k in range(0,len(data[0,0,:])):
+                    for j in range(0,len(data[0,:,0])):
+                        for i in range(0,len(data[:,0,0])):
+                            out += '%e' %(data[i,j,k]) + '\n'
+                f.write(out)
+            f.close()
+        else:
+            with open(fname,'w') as f:
+                f.write(head + '\n')
+                out = ''
+                for k in range(0,len(data[0,0,:])):
+                    for j in range(0,len(data[0,:,0])):
+                        for i in range(0,len(data[:,0,0])):
+                            out += '%e' %(data[i,j,k]) + '\n'
+                f.write(out)
+            f.close()
+    except:
+        with open(fname,'w') as f:
+            f.write(head + '\n')
+            out = ''
+            for k in range(0,len(data[0,0,:])):
+                for j in range(0,len(data[0,:,0])):
+                    for i in range(0,len(data[:,0,0])):
+                        out += '%e' %(data[i,j,k]) + '\n'
+            f.write(out)
+        f.close()
     
 def simplicesFromPoints(points):
     hull=ConvexHull(points)
